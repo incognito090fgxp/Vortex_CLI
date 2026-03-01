@@ -1,0 +1,2 @@
+[console_scripts]
+vortex = vortex_db:main

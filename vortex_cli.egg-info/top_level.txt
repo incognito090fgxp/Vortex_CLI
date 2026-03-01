@@ -1,2 +1,2 @@
 vortex_commands
-vortex
+vortex_db

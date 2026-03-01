@@ -1,4 +1,4 @@
-psycopg[binary]
+psycopg
 python-dotenv==1.0.0
 rich>=10.11.0
 prompt_toolkit>=3.0.0

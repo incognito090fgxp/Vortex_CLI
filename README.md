@@ -1,86 +1,117 @@
-# 🌀 Vortex DB CLI
+# 🌀 Vortex CLI
 
-Профессиональный интерактивный интерфейс для управления PostgreSQL на Python.
-
-## ✨ Особенности
-- **Интерактивный режим**: Полноценная оболочка с приглашением `vortex@host>`.
-- **Умный ввод**: Автодополнение команд (Tab) и история запросов.
-- **Безопасность**: Полная поддержка `.env` файлов (пароли никогда не попадут в Git).
-- **Красивый UI**: Таблицы, спиннеры и панели благодаря библиотеке `rich`.
-- **Быстрый выход**: Завершение работы по двойному `Ctrl+C`.
+CLI for managing the Vortex ecosystem!
 
 ---
 
-## 🚀 Быстрый старт
+## ✨ Features
 
-### 1. Подготовка окружения
-Сначала клонируйте репозиторий и создайте виртуальное окружение:
+- **Interactive REPL**: A full shell experience with a `vortex@host>` prompt.
+- **Adaptive UI**: The banner and interface automatically scale for small or large terminal windows.
+- **Smart SQL Completion**: Multi-level suggestions and real-time table name fetching.
+- **Security First**: Zero-echo passwords and safe history (auth details are never saved).
+- **Global Access**: Install once and use from any directory.
 
+---
+
+## 🚀 Installation (The Reliable Way)
+
+We recommend using **pipx** to make `vortex` available globally without messing up your system Python.
+
+### 1. Install repo
+#### Download the repository by going to the appropriate folder.
 ```bash
-# Создание окружения
-python -m venv venv
+git clone "https://github.com/incognito090fgxp/Vortex_CLI.git"
+```
 
-# Активация (Windows)
+#### Then go to the Vortex_CLI folder.
+```bash
+cd Vortex_CLI
+```
+
+### 2. Creating a virtual environment:
+
+#### Creating an environment.
+```bash
+py -m venv venv
+```
+
+#### Activation (Windows).
+```bash
 .\venv\Scripts\activate
+```
 
-# Активация (Linux/macOS)
+#### Activation (Linux/macOS).
+```bash
 source venv/bin/activate
 ```
 
-### 2. Установка зависимостей
-Установите проект в режиме редактирования, чтобы команда `vortex` стала доступна в вашей системе:
+### 3. Setup and pipx (One-time only):
 
+#### Install.
 ```bash
 pip install -e .
 ```
 
-### 3. Настройка базы данных
-Скопируйте пример конфига и впишите свои данные:
-
+#### Be sure to exit venv.
 ```bash
-cp .env.example .env  # На Linux/macOS
-copy .env.example .env # На Windows
+deactivate
 ```
 
-Отредактируйте `.env`:
-```ini
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=my_database
-DB_USER=postgres
-DB_PASSWORD=my_secret_password
+#### Ensure paths are configured
+```bash
+py -m pipx ensurepath
+```
+
+**CRITICAL**: Close and reopen your terminal after running `ensurepath`.
+
+### 4. Install Vortex
+Navigate to the project folder and run:
+```bash
+pipx install -e .
 ```
 
 ---
 
-## 🛠 Использование
+## 🛠 Usage
 
-Просто введите команду в терминале:
+Simply type the following in any terminal window:
 ```bash
 vortex
 ```
+## ⚙️ If you have moved the CLI folder, don't forget to do this:
 
-### Доступные команды внутри CLI:
-- `help` — Показать справку.
-- `check` — Проверить соединение с базой.
-- `tables` — Вывести список всех таблиц.
-- `query <SQL>` — Выполнить SQL запрос (например, `query SELECT * FROM users`).
-- `clear` — Очистить экран.
-- `exit` — Выход из программы.
+### 1. Remove link.
+```bash
+pipx uninstall vortex-cli
+```
 
-> **Подсказка:** Вы можете писать SQL запросы напрямую без команды `query` (например, просто `SELECT * FROM table`).
+### 2. Go to the folder with CLI (`...\Vortex_CLI`)
+
+### 3. We write the command again.
+```bash
+pipx install -e .
+```
+
+### Core Commands:
+| Command | Description |
+| :--- | :--- |
+| `help` | Show beautiful command overview. |
+| `check` | Test connection and refresh table cache. |
+| `tables` | List all tables in the `public` schema. |
+| `query <SQL>`| Run SQL (or just type SQL directly). |
+| `auth` | Reconfigure database settings interactively. |
+| `clear` | Clear terminal and update banner. |
+| `exit` | Close session. |
 
 ---
 
-## 🔐 Работа с Git
-- **`.env`** — Содержит ваши пароли, он автоматически игнорируется Git (прописан в `.gitignore`). Никогда не удаляйте его из игнора.
-- **`.env.example`** — Шаблон для других разработчиков. Если вы добавляете новую переменную окружения, добавьте её и сюда (без пароля!).
-- **`venv/`** — Папка с библиотеками, также игнорируется. Каждый разработчик создает свою через `python -m venv venv`.
+## 🐧 Linux / macOS Notes
+
+1. Install system dependencies: `sudo apt install python3-dev libpq-dev` (Ubuntu) or `brew install postgresql` (macOS).
+2. Follow the same `pipx` steps, but use `python3` instead of `py`.
 
 ---
 
-## ⌨️ Горячие клавиши
-- `Tab` — Автодополнение команд.
-- `Стрелки Вверх/Вниз` — Навигация по истории команд.
-- `Ctrl + C` (один раз) — Отмена текущего ввода.
-- `Ctrl + C` (дважды) — Быстрый выход из программы.
+## 🔐 Security Note
+The `.env` and `.vortex_history` files are local to the project folder and ignored by Git. **Never commit your `.env` file!**

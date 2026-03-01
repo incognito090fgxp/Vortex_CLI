@@ -3,9 +3,9 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "vortex-db-cli"
+name = "vortex-cli"
 version = "0.1.0"
-description = "Интерактивный CLI для PostgreSQL"
+description = "Профессиональный интерактивный CLI для PostgreSQL"
 dependencies = [
     "psycopg[binary]",
     "python-dotenv==1.0.0",
@@ -15,3 +15,6 @@ dependencies = [
 
 [project.scripts]
 vortex = "vortex_db:main"
+
+[tool.setuptools]
+py-modules = ["vortex_db", "vortex_commands"]

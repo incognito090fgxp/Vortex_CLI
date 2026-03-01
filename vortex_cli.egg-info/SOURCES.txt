@@ -1,7 +1,7 @@
 README.md
 pyproject.toml
 vortex_commands.py
-vortex.py
+vortex_db.py
 vortex_cli.egg-info/PKG-INFO
 vortex_cli.egg-info/SOURCES.txt
 vortex_cli.egg-info/dependency_links.txt
