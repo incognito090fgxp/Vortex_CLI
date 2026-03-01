@@ -1,0 +1,8 @@
+pyproject.toml
+vortex_db.py
+vortex_db_cli.egg-info/PKG-INFO
+vortex_db_cli.egg-info/SOURCES.txt
+vortex_db_cli.egg-info/dependency_links.txt
+vortex_db_cli.egg-info/entry_points.txt
+vortex_db_cli.egg-info/requires.txt
+vortex_db_cli.egg-info/top_level.txt
