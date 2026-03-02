@@ -1,27 +1,28 @@
-# 🤖 Gemini CLI Mandates for Vortex Project
+# Vortex CLI Development Guide
 
-Foundational rules for maintaining the Vortex ecosystem.
+## 📌 Versioning System (PEP 440)
+We use a 4-digit versioning scheme: **Release.Beta.DEV.FIX** (e.g., `0.2.0.5`)
+- **Release**: Major versions (infrastructure change).
+- **Beta**: Stable feature sets within a release.
+- **DEV**: Development iterations / experimental features.
+- **FIX**: Hotfixes and minor patches.
 
-## 🛠 Project Architecture
-- **Language**: Python 3.9+
-- **Entry Point**: `vortex.py` (exposed as `vortex` via `pyproject.toml`)
-- **Modules**:
-  - `vortex_config.py`: Single source of truth for VERSION and local settings.
-  - `vortex_commands.py`: Definitions and descriptions of all CLI commands.
-  - `vortex_completer.py`: Encapsulated logic for `prompt_toolkit` autocomplete.
-  - `.build/`: Hidden directory for setuptools metadata (configured in `setup.cfg`).
-
-## 📜 Coding Standards
-- **Encoding**: ALL files must be saved in **UTF-8**. Include `# -*- coding: utf-8 -*-` at the top if adding new files.
-- **Independence**: Never use relative imports. Use `sys.path.insert(0, BASE_DIR)` in the main script to ensure modules are found globally.
-- **Commands**: New system commands MUST be added to `vortex_commands.py` first.
-- **UI**: Use `rich` for all terminal output (Panels, Tables, Progress).
+### 🏷 Tagging Strategy
+- **Floating Stable Tags**: Use tags like `v0`, `v1` to point to the latest **proven stable** commit of that release. 
+- Users are encouraged to stay on these tags for production use.
+- Developer moves these tags manually: `git tag -f v0 <hash> && git push origin v0 --force`.
 
 ## 🔄 Update & Settings Mechanism
-- **Git Updates**: Use `subprocess` with `cwd=BASE_DIR` to execute Git commands regardless of the user's current directory.
-- **Config**: User settings are stored in `.vortex_settings.json` (ignored by Git). Default settings are hardcoded in `vortex_config.py`.
-- **Auto-Update**: Always check `config.get("auto_update")` before running the silent update check on startup.
+- **Logic**: `update check` calculates the "commit distance" between the local HEAD and the upstream branch. 
+- **Distance-based**: String version comparison is secondary; if the remote branch has more commits, an update is available. This ensures correct "left-to-right" progression regardless of file content.
+- **Dependency Sync**: 
+  - **Windows**: Installs dependencies by list from `pyproject.toml` to avoid locking `vortex.exe`.
+  - **Unix**: Performs `pip install .`.
+  - **Repair**: If the environment is broken (ModuleNotFoundError), use `pip install -e .`.
 
-## 🔐 Security
-- **Sensitive Data**: NEVER save passwords or connection strings to history.
-- **Local Files**: `.env`, `.vortex_history`, and `.vortex_settings.json` are strictly local and MUST be kept in `.gitignore`.
+## 📂 Project Structure
+- `vortex.py`: Core CLI logic and command handlers.
+- `vortex_config.py`: Single source of truth for VERSION and local settings.
+- `vortex_commands.py`: Command definitions and help text.
+- `vortex_completer.py`: Tab-completion logic.
+- `pyproject.toml`: Package metadata and dependencies.
