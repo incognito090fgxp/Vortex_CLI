@@ -4,7 +4,7 @@ import os
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SETTINGS_PATH = os.path.join(BASE_DIR, ".vortex_settings.json")
 
-VERSION = "0.2"
+VERSION = "0.2_FIX-1"
 
 # Настройки по умолчанию (приходят из гита)
 DEFAULT_SETTINGS = {

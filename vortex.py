@@ -30,7 +30,6 @@ from vortex_completer import CustomCompleter
 
 ENV_PATH = os.path.join(BASE_DIR, ".env")
 HISTORY_PATH = os.path.join(BASE_DIR, ".vortex_history")
-BUILD_DIR = os.path.join(BASE_DIR, ".build")
 
 load_dotenv(ENV_PATH)
 console = Console()
@@ -47,10 +46,6 @@ prompt_style = PromptStyle.from_dict({
 
 class VortexCLI:
     def __init__(self):
-        if not os.path.exists(BUILD_DIR):
-            try: os.makedirs(BUILD_DIR)
-            except: pass
-        
         self.completer = CustomCompleter()
         self.session = PromptSession(
             history=FileHistory(HISTORY_PATH),
@@ -161,77 +156,144 @@ class VortexCLI:
         else:
             console.print("[red]Usage: config [show | auto_update on/off][/red]")
 
-    def cmd_update(self, silent=False):
+    def _git_run(self, args, capture=True):
         import subprocess
-        if not silent: console.print("[yellow]Checking for updates...[/yellow]")
         try:
-            # Check git version first
-            git_ver = subprocess.run(["git", "--version"], capture_output=True, text=True)
-            if git_ver.returncode != 0:
-                if not silent: console.print("[red]Error: git is not installed or not in PATH.[/red]")
-                return
-
-            # Get current branch
-            branch_res = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"], capture_output=True, text=True, cwd=BASE_DIR)
-            if branch_res.returncode != 0:
-                if not silent: 
-                    console.print(f"[red]Error getting current branch: {branch_res.stderr.strip()}[/red]")
-                    console.print(f"[dim]Working directory: {BASE_DIR}[/dim]")
-                    if "dubious ownership" in branch_res.stderr:
-                        console.print(f"\n[yellow]Try running:[/yellow]\n[bold green]git config --global --add safe.directory {BASE_DIR}[/bold green]")
-                return
-            branch = branch_res.stdout.strip()
-
-            # Fetch updates
-            fetch_res = subprocess.run(["git", "fetch"], capture_output=True, text=True, cwd=BASE_DIR)
-            if fetch_res.returncode != 0:
-                if not silent:
-                    console.print(f"[red]Error during git fetch: {fetch_res.stderr.strip()}[/red]")
-                    if "dubious ownership" in fetch_res.stderr:
-                        console.print(f"\n[yellow]Try running:[/yellow]\n[bold green]git config --global --add safe.directory {BASE_DIR}[/bold green]")
-                return
-
-            # Determine upstream
-            upstream_res = subprocess.run(["git", "rev-parse", "--abbrev-ref", f"{branch}@{{u}}"], capture_output=True, text=True, cwd=BASE_DIR)
-            if upstream_res.returncode == 0:
-                upstream = upstream_res.stdout.strip()
-            else:
-                upstream = None
-                for candidate in [f"origin/{branch}", "origin/main", "origin/master"]:
-                    check = subprocess.run(["git", "rev-parse", "--verify", candidate], capture_output=True, cwd=BASE_DIR)
-                    if check.returncode == 0:
-                        upstream = candidate
-                        break
-            
-            if not upstream:
-                if not silent: console.print("[red]Error: Upstream branch not found.[/red]")
-                return
-
-            # Compare commits
-            behind_res = subprocess.run(["git", "rev-list", "--count", f"HEAD..{upstream}"], capture_output=True, text=True, cwd=BASE_DIR)
-            if behind_res.returncode != 0:
-                if not silent: console.print(f"[red]Error checking update status: {behind_res.stderr.strip()}[/red]")
-                return
-            
-            behind_count = int(behind_res.stdout.strip() or 0)
-            if behind_count > 0:
-                console.print(f"[bold cyan]🚀 Update available! You are behind by {behind_count} commit(s).[/bold cyan]")
-                confirm = self.session.prompt("Update now? (y/n): ").lower().strip()
-                if confirm == 'y':
-                    console.print("[yellow]Updating...[/yellow]")
-                    result = subprocess.run(["git", "pull"], capture_output=True, text=True, cwd=BASE_DIR)
-                    if result.returncode == 0:
-                        console.print("[bold green]✅ Updated successfully![/bold green]")
-                        console.print("[yellow]Please restart Vortex CLI to apply changes.[/yellow]")
-                        sys.exit(0)
-                    else:
-                        console.print(f"[bold red]Update failed:[/bold red]\n{result.stderr.strip()}")
-                else:
-                    console.print("[dim]Update deferred.[/dim]")
-            else:
-                if not silent: console.print("[green]You are already on the latest version.[/green]")
+            res = subprocess.run(["git"] + args, capture_output=capture, text=True, cwd=BASE_DIR)
+            if res.returncode != 0 and capture:
+                if "dubious ownership" in res.stderr:
+                    console.print(f"\n[yellow]Security issue detected.[/yellow] Run this fix:")
+                    console.print(f"[bold green]git config --global --add safe.directory {BASE_DIR}[/bold green]")
+            return res
         except Exception as e:
-            if not silent: console.print(f"[red]Unexpected error during update: {e}[/red]")
+            console.print(f"[red]Git Error: {e}[/red]")
+            return None
+
+    def cmd_update(self, args: str = "", silent=False):
+        import subprocess
+        parts = args.split()
+        sub = parts[0].lower() if parts else "check"
+
+        if sub == "check":
+            if not silent: console.print("[yellow]Checking for updates...[/yellow]")
+            # Get current branch
+            res = self._git_run(["rev-parse", "--abbrev-ref", "HEAD"])
+            if not res or res.returncode != 0: return
+            branch = res.stdout.strip()
+
+            # Fetch
+            res = self._git_run(["fetch"])
+            if not res or res.returncode != 0: return
+
+            # Get upstream
+            res = self._git_run(["rev-parse", "--abbrev-ref", f"{branch}@{{u}}"])
+            upstream = res.stdout.strip() if res.returncode == 0 else f"origin/{branch}"
+
+            # Compare
+            res = self._git_run(["rev-list", "--count", f"HEAD..{upstream}"])
+            if not res or res.returncode != 0: return
+            behind = int(res.stdout.strip() or 0)
+
+            if behind > 0:
+                console.print(f"[bold cyan]🚀 Update available! You are behind by {behind} commit(s).[/bold cyan]")
+                if self.session.prompt("Update now? (y/n): ").lower().strip() == 'y':
+                    console.print("[yellow]Updating...[/yellow]")
+                    res = self._git_run(["pull"])
+                    if res and res.returncode == 0:
+                        console.print("[bold green]✅ Updated successfully![/bold green]")
+                        sys.exit(0)
+            elif not silent:
+                console.print("[green]You are on the latest version.[/green]")
+
+        elif sub == "branch":
+            self._git_run(["fetch", "--all"])
+            res = self._git_run(["branch", "-r"])
+            if not res or res.returncode != 0: return
+            branches = [b.strip() for b in res.stdout.split('\n') if b.strip() and '->' not in b]
+            
+            t = Table(title="Remote Branches", box=box.ROUNDED)
+            t.add_column("Idx", style="dim"); t.add_column("Branch Name", style="bold green")
+            for i, b in enumerate(branches, 1): t.add_row(str(i), b)
+            console.print(t)
+            
+            idx = self.session.prompt("\nSelect branch index (or 'q' to quit): ").strip()
+            if idx.isdigit() and 1 <= int(idx) <= len(branches):
+                full_branch = branches[int(idx)-1] # origin/name
+                target = full_branch.replace("origin/", "", 1)
+                console.print(f"[yellow]Switching to {target}...[/yellow]")
+                
+                # Check if local branch exists
+                check_local = self._git_run(["rev-parse", "--verify", target])
+                if check_local.returncode == 0:
+                    # Switch and PULL
+                    self._git_run(["checkout", target], capture=False)
+                    console.print(f"[yellow]Pulling latest changes for {target}...[/yellow]")
+                    self._git_run(["pull", "origin", target], capture=False)
+                else:
+                    # Create new tracking branch
+                    self._git_run(["checkout", "-b", target, full_branch], capture=False)
+                
+                console.print(Panel(f"[bold green]✅ Successfully switched to {target}[/bold green]\nPlease restart Vortex CLI to apply changes.", border_style="green"))
+                sys.exit(0)
+
+        elif sub == "tag":
+            self._git_run(["fetch", "--tags"])
+            res = self._git_run(["tag", "-l", "--sort=-v:refname"])
+            if not res or res.returncode != 0: return
+            tags = [t.strip() for t in res.stdout.split('\n') if t.strip()]
+            
+            if not tags:
+                console.print("[yellow]No tags found.[/yellow]")
+                return
+
+            t = Table(title="Recent Tags", box=box.ROUNDED)
+            t.add_column("Idx", style="dim"); t.add_column("Tag Name", style="bold green")
+            for i, tag in enumerate(tags[:20], 1): t.add_row(str(i), tag)
+            console.print(t)
+            
+            idx = self.session.prompt("\nSelect tag index (or 'q' to quit): ").strip()
+            if idx.isdigit() and 1 <= int(idx) <= len(tags):
+                target = tags[int(idx)-1]
+                console.print(f"[yellow]Checking out tag {target}...[/yellow]")
+                self._git_run(["checkout", target], capture=False)
+                sys.exit(0)
+
+        elif sub == "commit":
+            self._git_run(["fetch", "--all"])
+            res = self._git_run(["log", "--all", "-n", "30", "--pretty=format:%h|%ad|%an|%s|%d", "--date=short"])
+            if not res or res.returncode != 0: return
+            lines = res.stdout.split('\n')
+            
+            t = Table(title="Recent Commits (All Branches)", box=box.ROUNDED)
+            t.add_column("Idx", style="dim"); t.add_column("Hash", style="cyan")
+            t.add_column("Date", style="dim"); t.add_column("Subject", style="bold green")
+            t.add_column("Refs", style="yellow")
+            
+            commits = []
+            for i, line in enumerate(lines, 1):
+                parts = line.split('|')
+                if len(parts) >= 4:
+                    h, date, author, subj = parts[:4]
+                    refs = parts[4] if len(parts) > 4 else ""
+                    commits.append(h)
+                    t.add_row(str(i), h, date, subj, refs)
+            console.print(t)
+            
+            idx = self.session.prompt("\nSelect commit index or enter hash (or 'q'): ").strip()
+            if idx.isdigit() and 1 <= int(idx) <= len(commits):
+                target = commits[int(idx)-1]
+                console.print(f"[yellow]Checking out {target}...[/yellow]")
+                self._git_run(["checkout", target], capture=False)
+                sys.exit(0)
+            elif len(idx) >= 7:
+                self._git_run(["checkout", idx], capture=False)
+                sys.exit(0)
+
+        else:
+            console.print(f"[yellow]Checking out '{sub}'...[/yellow]")
+            res = self._git_run(["checkout", sub], capture=False)
+            if res and res.returncode == 0:
+                sys.exit(0)
 
     def cmd_query(self, sql: str):
         if not sql: return
@@ -253,7 +315,6 @@ class VortexCLI:
             console.print(Panel(f"[bold red]{e}[/bold red]", title="SQL Error", expand=False))
 
     def show_help(self):
-        from vortex_commands import CLI_COMMANDS
         h = Table(show_header=False, box=None, padding=(0, 2))
         for cmd, desc in CLI_COMMANDS.items(): h.add_row(f"[bold cyan]{cmd}[/bold cyan]", desc)
         console.print(Panel(h, title="Commands", border_style="blue", expand=False))
@@ -274,7 +335,7 @@ class VortexCLI:
                 if cmd == 'exit': break
                 elif cmd == 'help': self.show_help()
                 elif cmd == 'auth': self.cmd_auth()
-                elif cmd == 'update': self.cmd_update()
+                elif cmd == 'update': self.cmd_update(arg)
                 elif cmd == 'config': self.cmd_config(arg)
                 elif cmd == 'check': self.cmd_check()
                 elif cmd == 'tables': self.cmd_tables()
