@@ -1,8 +1,0 @@
-Metadata-Version: 2.4
-Name: vortex-cli
-Version: 0.1.0
-Summary: Профессиональный интерактивный CLI для PostgreSQL
-Requires-Dist: psycopg[binary]
-Requires-Dist: python-dotenv==1.0.0
-Requires-Dist: rich>=10.11.0
-Requires-Dist: prompt_toolkit>=3.0.0

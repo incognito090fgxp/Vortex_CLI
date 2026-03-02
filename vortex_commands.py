@@ -1,63 +1,33 @@
-# Описания системных команд CLI
+# -*- coding: utf-8 -*-
+
+# CLI System Commands Descriptions
 CLI_COMMANDS = {
-    'check': 'Проверить соединение с базой данных',
-    'tables': 'Вывести список всех таблиц в схеме public',
-    'query': 'Выполнить произвольный SQL запрос',
-    'auth': 'Перенастроить параметры подключения (.env)',
-    'clear': 'Очистить экран терминала',
-    'help': 'Показать справку по командам',
-    'exit': 'Выйти из Vortex CLI',
+    "check": "Проверить соединение с базой данных",
+    "tables": "Вывести список всех таблиц в схеме public",
+    "query": "Выполнить произвольный SQL запрос",
+    "auth": "Перенастроить параметры подключения (.env)",
+    "update": "Обновить CLI через Git pull",
+    "config": "Настройки CLI (автообновление и др.)",
+    "clear": "Очистить экран терминала",
+    "help": "Показать справку по командам",
+    "exit": "Выйти из Vortex CLI",
 }
 
-# Базовая иерархия SQL для NestedCompleter (будет дополнена динамически таблицами)
-SQL_HIERARCHY = {
-    'SELECT': {
-        '*': {'FROM': {}},
-        'COUNT(*)': {'FROM': {}},
-        'DISTINCT': {},
-    },
-    'INSERT': {'INTO': {}},
-    'UPDATE': {},
-    'DELETE': {'FROM': {}},
-    'CREATE': {'TABLE': {}, 'DATABASE': {}, 'INDEX': {}},
-    'DROP': {'TABLE': {}, 'DATABASE': {}},
-    'ALTER': {'TABLE': {'ADD': {'COLUMN': {}}, 'DROP': {'COLUMN': {}}, 'RENAME': {'TO': {}}}},
-    'JOIN': {'INNER': {'JOIN': {}}, 'LEFT': {'JOIN': {}}, 'RIGHT': {'JOIN': {}}},
-    'WHERE': {},
-    'GROUP': {'BY': {}},
-    'ORDER': {'BY': {}},
-    'LIMIT': {},
-}
-
-# Мета-описания
-ALL_DESCRIPTIONS = {
-    **CLI_COMMANDS,
-    'SELECT': 'Выбрать данные',
-    'INSERT': 'Вставить данные',
-    'UPDATE': 'Обновить данные',
-    'DELETE': 'Удалить данные',
-    'FROM': 'Из какой таблицы?',
-    'WHERE': 'Условие фильтрации',
-    'TABLE': 'Сущность: Таблица',
-}
-
-# Плейсхолдеры (Призрачный текст)
-PLACEHOLDERS = {
-    'SELECT': ' * FROM <table_name>',
-    'FROM': ' <table_name>',
-    'INSERT INTO': ' <table_name> (cols) VALUES (...)',
-    'UPDATE': ' <table_name> SET ...',
-    'DELETE FROM': ' <table_name> WHERE ...',
-    'WHERE': ' <condition>',
-}
+ALL_DESCRIPTIONS = {k.upper(): v for k, v in CLI_COMMANDS.items()}
 
 def get_completer_map():
+    """Returns the command map for autocomplete"""
     return {
-        'check': None,
-        'tables': None,
-        'auth': None,
-        'clear': None,
-        'help': None,
-        'exit': None,
-        'query': SQL_HIERARCHY,
+        "check": None,
+        "tables": None,
+        "auth": None,
+        "update": None,
+        "config": {
+            "auto_update": {"on": None, "off": None},
+            "show": None,
+        },
+        "clear": None,
+        "help": None,
+        "exit": None,
+        "query": None,
     }

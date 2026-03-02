@@ -4,17 +4,18 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vortex-cli"
-version = "0.1.0"
-description = "Профессиональный интерактивный CLI для PostgreSQL"
+version = "0.2"
+description = "CLI для управление Vortex системой"
+requires-python = ">=3.9"
 dependencies = [
-    "psycopg[binary]",
-    "python-dotenv==1.0.0",
+    "psycopg>=3.1.0",
+    "python-dotenv>=1.0.0",
     "rich>=10.11.0",
-    "prompt_toolkit>=3.0.0"
+    "prompt_toolkit>=3.0.36"
 ]
 
 [project.scripts]
-vortex = "vortex_db:main"
+vortex = "vortex:main"
 
 [tool.setuptools]
-py-modules = ["vortex_db", "vortex_commands"]
+py-modules = ["vortex", "vortex_commands", "vortex_config"]

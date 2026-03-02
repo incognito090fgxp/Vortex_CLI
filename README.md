@@ -101,8 +101,21 @@ pipx install -e .
 | `tables` | List all tables in the `public` schema. |
 | `query <SQL>`| Run SQL (or just type SQL directly). |
 | `auth` | Reconfigure database settings interactively. |
+| `update` | Manually check and apply updates via Git. |
+| `config` | Manage global settings (e.g., auto-updates). |
 | `clear` | Clear terminal and update banner. |
 | `exit` | Close session. |
+
+---
+
+## 🔄 Updates & Settings
+
+Vortex CLI now supports automatic updates and local configuration:
+
+- **Auto-Updates**: By default, the CLI checks for new versions on GitHub every time it starts. If an update is found, it will ask for your confirmation before pulling the changes.
+- **Global Settings**: Use the `config` command to manage your preferences. These settings are stored locally in `.vortex_settings.json` and are not tracked by Git.
+  - `config show`: View current settings.
+  - `config auto_update off`: Disable the startup update check.
 
 ---
 

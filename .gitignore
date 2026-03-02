@@ -15,6 +15,9 @@ __pycache__/
 # IDE
 .vscode/
 .idea/
+.build/*
+!.build/.gitkeep
 
-# logs
+# settings & logs
+.vortex_settings.json
 .vortex_history
