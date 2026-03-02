@@ -170,37 +170,18 @@ class VortexCLI:
             return None
 
     def _sync_deps(self):
-        """Cross-platform dependency sync with fallback for older Python versions."""
+        """Cross-platform dependency sync using current python interpreter."""
         import subprocess
         console.print("[yellow]Checking & Syncing dependencies...[/yellow]")
-        
         try:
-            deps = []
-            try:
-                import tomllib
-                toml_path = os.path.join(BASE_DIR, "pyproject.toml")
-                with open(toml_path, "rb") as f:
-                    data = tomllib.load(f)
-                deps = data.get("project", {}).get("dependencies", [])
-            except (ImportError, Exception):
-                pass
-
-            if os.name == 'nt' and deps:
-                # On Windows, we install dependencies by list to avoid locking vortex.exe
-                cmd = [sys.executable, "-m", "pip", "install"] + deps + ["--quiet"]
-            else:
-                # On Linux/Mac, standard install is fine
-                cmd = [sys.executable, "-m", "pip", "install", ".", "--quiet"]
-
+            # We use -m pip install . to install dependencies defined in pyproject.toml
+            # Adding --upgrade to ensure we get latest versions if they changed
+            cmd = [sys.executable, "-m", "pip", "install", ".", "--quiet"]
             res = subprocess.run(cmd, cwd=BASE_DIR, capture_output=True, text=True)
             if res.returncode == 0:
                 console.print("[green]✅ Dependencies up to date.[/green]")
             else:
-                console.print(f"[red]❌ Dependency sync failed.[/red]")
-                if "WinError 32" in res.stderr or "ModuleNotFoundError" in res.stderr:
-                    console.print("[yellow]Hint: Your installation might be broken. Run: [bold]pip install -e .[/bold][/yellow]")
-                else:
-                    console.print(f"[dim]{res.stderr}[/dim]")
+                console.print(f"[red]❌ Dependency sync failed: {res.stderr}[/red]")
         except Exception as e:
             console.print(f"[red]Error syncing deps: {e}[/red]")
 
