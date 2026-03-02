@@ -176,34 +176,57 @@ class VortexCLI:
 
         if sub == "check":
             if not silent: console.print("[yellow]Checking for updates...[/yellow]")
+            
             # Get current branch
             res = self._git_run(["rev-parse", "--abbrev-ref", "HEAD"])
             if not res or res.returncode != 0: return
             branch = res.stdout.strip()
 
             # Fetch
-            res = self._git_run(["fetch"])
-            if not res or res.returncode != 0: return
+            self._git_run(["fetch", "--all", "--quiet"])
 
-            # Get upstream
-            res = self._git_run(["rev-parse", "--abbrev-ref", f"{branch}@{{u}}"])
-            upstream = res.stdout.strip() if res.returncode == 0 else f"origin/{branch}"
+            if branch == "HEAD":
+                # We are in detached HEAD (likely after UPDATE COMMIT or UPDATE TAG)
+                # Try to find which remote branch we might be tracking
+                res = self._git_run(["branch", "-a", "--contains", "HEAD"])
+                branches = res.stdout.split("\n") if res else []
+                # Look for something like 'remotes/origin/FIX'
+                remote_branches = [b.strip().replace("remotes/", "") for b in branches if "remotes/origin/" in b and "HEAD" not in b]
+                
+                if remote_branches:
+                    upstream = remote_branches[0] # Use the first matching remote branch
+                    if not silent: console.print(f"[dim]Detached HEAD detected. Comparing with {upstream}...[/dim]")
+                else:
+                    upstream = "origin/main"
+            else:
+                # Normal branch tracking
+                res = self._git_run(["rev-parse", "--abbrev-ref", f"{branch}@{{u}}"])
+                upstream = res.stdout.strip() if res.returncode == 0 else f"origin/{branch}"
 
             # Compare
             res = self._git_run(["rev-list", "--count", f"HEAD..{upstream}"])
-            if not res or res.returncode != 0: return
+            if not res or res.returncode != 0: 
+                if not silent: console.print(f"[red]Could not compare with {upstream}[/red]")
+                return
+            
             behind = int(res.stdout.strip() or 0)
 
             if behind > 0:
-                console.print(f"[bold cyan]🚀 Update available! You are behind by {behind} commit(s).[/bold cyan]")
+                console.print(f"[bold cyan]🚀 Update available! You are behind {upstream} by {behind} commit(s).[/bold cyan]")
                 if self.session.prompt("Update now? (y/n): ").lower().strip() == 'y':
                     console.print("[yellow]Updating...[/yellow]")
-                    res = self._git_run(["pull"])
-                    if res and res.returncode == 0:
-                        console.print("[bold green]✅ Updated successfully![/bold green]")
-                        sys.exit(0)
+                    # If detached, we probably want to pull the upstream branch
+                    if branch == "HEAD":
+                        target_branch = upstream.split("/")[-1]
+                        self._git_run(["checkout", target_branch], capture=False)
+                        self._git_run(["pull", "origin", target_branch], capture=False)
+                    else:
+                        self._git_run(["pull"], capture=False)
+                    
+                    console.print("[bold green]✅ Updated successfully![/bold green]")
+                    sys.exit(0)
             elif not silent:
-                console.print("[green]You are on the latest version.[/green]")
+                console.print(f"[green]You are on the latest version (relative to {upstream}).[/green]")
 
         elif sub == "branch":
             self._git_run(["fetch", "--all"])
