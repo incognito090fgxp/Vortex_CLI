@@ -8,12 +8,19 @@ We use a 4-digit versioning scheme: **Release.Beta.DEV.FIX** (e.g., `0.2.0.5`)
 - **FIX**: Hotfixes and minor patches.
 
 ### 🏷 Tagging Strategy
-- **Floating Stable Tags**: Use tags like `v0`, `v1` to point to the latest **proven stable** commit of that release. 
+- **Floating Stable Tags**: Use tags like `v0`, `v1`, `v10` to point to the latest **proven stable** commit.
+- **Format**: Strictly `v` followed by digits (`^v\d+$`). No dots, letters, or other symbols allowed for stable aliases.
+- **Sorting**: CLI uses numeric sorting for these tags (e.g., `v10` is recognized as newer than `v2`).
 - Users are encouraged to stay on these tags for production use.
 - Developer moves these tags manually: `git tag -f v0 <hash> && git push origin v0 --force`.
 
 ## 🔄 Update & Settings Mechanism
-- **Logic**: `update check` calculates the "commit distance" between the local HEAD and the upstream branch. 
+- **Logic**: 
+  - **Main Branch**: Performs a dual check for the latest commit (`origin/main`) and the latest stable numeric tag. 
+    - If an update is available, it prompts: *"Would you like to update to the stable version? If so, select 's' (stable)."*
+    - User choices: `y` (update to latest commit), `s` (update to latest stable tag), `n` (skip).
+    - If no stable tag exists, it notifies: *"Note: No stable version found."* and only offers `y/n`.
+  - **Other Branches/Detached HEAD**: Calculates the "commit distance" between the local HEAD and the upstream branch. This feature is disabled outside of `main` to prevent accidental stable-tracking on development branches.
 - **Distance-based**: String version comparison is secondary; if the remote branch has more commits, an update is available. This ensures correct "left-to-right" progression regardless of file content.
 - **Dependency Sync**: 
   - **Windows**: Installs dependencies by list from `pyproject.toml` to avoid locking `vortex.exe`.

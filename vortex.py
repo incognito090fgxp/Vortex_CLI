@@ -98,9 +98,11 @@ class VortexCLI:
         width = console.size.width
         if width < 65: 
             return f"""[bold cyan]
-██╗  ██╗
-╚██╗██╔╝ 🌀 VORTEX CLI [dim]v{VERSION}[/dim]
- ╚███╔╝  [/bold cyan]
+██╗  ██╗ 
+╚██╗██╔╝ 
+ ╚███╔╝  
+  ╚══╝   
+🌀 VORTEX CLI [dim]v{VERSION}[/dim][/bold cyan]
 """
         return f"""
 [bold cyan]
@@ -295,9 +297,52 @@ class VortexCLI:
             if not res or res.returncode != 0: return
             branch = res.stdout.strip()
 
-            # Fetch
-            self._git_run(["fetch", "--all", "--quiet"])
+            # Fetch everything
+            self._git_run(["fetch", "--all", "--tags", "--quiet"])
 
+            # Feature only for 'main' branch
+            if branch == "main":
+                # Find stable tags (v0, v1, v241431...) - strictly 'v' + digits
+                res_tags = self._git_run(["tag", "-l"])
+                all_tags = [t.strip() for t in res_tags.stdout.split('\n') if t.strip()]
+                
+                # Filter tags that match ^v\d+$
+                stable_tags = [t for t in all_tags if re.match(r"^v\d+$", t)]
+                
+                # Numeric sort: v10 > v2
+                stable_tags.sort(key=lambda x: int(x[1:]), reverse=True)
+                latest_stable = stable_tags[0] if stable_tags else None
+
+                # Latest commit on origin/main
+                res_latest = self._git_run(["rev-parse", "origin/main"])
+                latest_commit = res_latest.stdout.strip() if res_latest and res_latest.returncode == 0 else None
+                
+                # Current commit
+                res_current = self._git_run(["rev-parse", "HEAD"])
+                current_commit = res_current.stdout.strip()
+
+                if latest_commit and current_commit != latest_commit:
+                    console.print(f"[bold cyan]🚀 Update available! You are behind origin/main.[/bold cyan]")
+                    
+                    if latest_stable:
+                        console.print(f"Latest: [green]{latest_commit[:7]}[/green] | Stable: [green]{latest_stable}[/green]")
+                        console.print("Would you like to update to the stable version? If so, select 's' (stable).")
+                        choice = self.session.prompt("Update now? (y/n/s): ").lower().strip()
+                    else:
+                        console.print("[yellow]Note: No stable version found.[/yellow]")
+                        choice = self.session.prompt("Update now? (y/n): ").lower().strip()
+                    
+                    if choice == 'y':
+                        console.print("[yellow]Updating to latest...[/yellow]")
+                        self._checkout_and_sync("main", pull=True)
+                    elif choice == 's' and latest_stable:
+                        console.print(f"[yellow]Updating to stable {latest_stable}...[/yellow]")
+                        self._checkout_and_sync(latest_stable)
+                elif not silent:
+                    console.print("[green]You are on the latest version.[/green]")
+                return
+
+            # Legacy logic for other branches or detached HEAD
             if branch == "HEAD":
                 # We are in detached HEAD
                 res = self._git_run(["branch", "-a", "--contains", "HEAD"])
