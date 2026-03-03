@@ -11,23 +11,26 @@ from typing import Optional, Iterable, List
 # SET PATHS
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-def find_project_root(start_dir):
-    """Find the project root by looking for .git or pyproject.toml."""
+def find_project_root():
+    """Find the project root by looking for pyproject.toml or .git."""
+    # 1. Try git
     try:
-        res = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True, cwd=start_dir)
+        res = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True, cwd=BASE_DIR)
         if res.returncode == 0:
             return res.stdout.strip()
     except Exception:
         pass
-    
-    curr = start_dir
+
+    # 2. Search upwards for pyproject.toml
+    curr = BASE_DIR
     while curr != os.path.dirname(curr):
-        if os.path.exists(os.path.join(curr, "pyproject.toml")) or os.path.exists(os.path.join(curr, ".git")):
+        if os.path.exists(os.path.join(curr, "pyproject.toml")):
             return curr
         curr = os.path.dirname(curr)
-    return start_dir
 
-PROJECT_ROOT = find_project_root(BASE_DIR)
+    return BASE_DIR
+
+PROJECT_ROOT = find_project_root()
 
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
@@ -200,7 +203,8 @@ class VortexCLI:
         """Cross-platform dependency sync with fallback for older Python versions."""
         import subprocess
         console.print("[yellow]Checking & Syncing dependencies...[/yellow]")
-        
+        console.print(f"[dim]Project Root: {PROJECT_ROOT}[/dim]")
+
         try:
             deps = []
             try:
@@ -222,6 +226,7 @@ class VortexCLI:
                 # Use absolute path to the root to avoid '.' ambiguity
                 cmd = [sys.executable, "-m", "pip", "install", PROJECT_ROOT, "--quiet"]
 
+            console.print(f"[dim]Running: {' '.join(cmd)}[/dim]")
             res = subprocess.run(cmd, cwd=PROJECT_ROOT, capture_output=True, text=True)
             if res.returncode == 0:
                 console.print("[green]✅ Dependencies up to date.[/green]")
@@ -254,7 +259,7 @@ class VortexCLI:
 
         if sub == "check":
             if not silent: console.print("[yellow]Checking for updates...[/yellow]")
-            
+
             # Get current branch
             res = self._git_run(["rev-parse", "--abbrev-ref", "HEAD"])
             if not res or res.returncode != 0: return
@@ -270,7 +275,7 @@ class VortexCLI:
                 branches = res.stdout.split("\n") if res else []
                 # Look for something like 'remotes/origin/FIX'
                 remote_branches = [b.strip().replace("remotes/", "") for b in branches if "remotes/origin/" in b and "HEAD" not in b]
-                
+
                 if remote_branches:
                     upstream = remote_branches[0] # Use the first matching remote branch
                     if not silent: console.print(f"[dim]Detached HEAD detected. Comparing with {upstream}...[/dim]")
@@ -286,7 +291,7 @@ class VortexCLI:
             if not res or res.returncode != 0: 
                 if not silent: console.print(f"[red]Could not compare with {upstream}[/red]")
                 return
-            
+
             behind = int(res.stdout.strip() or 0)
 
             if behind > 0:
@@ -304,17 +309,17 @@ class VortexCLI:
             res = self._git_run(["branch", "-r"])
             if not res or res.returncode != 0: return
             branches = [b.strip() for b in res.stdout.split('\n') if b.strip() and '->' not in b]
-            
+
             t = Table(title="Remote Branches", box=box.ROUNDED)
             t.add_column("Idx", style="dim"); t.add_column("Branch Name", style="bold green")
             for i, b in enumerate(branches, 1): t.add_row(str(i), b)
             console.print(t)
-            
+
             idx = self.session.prompt("\nSelect branch index (or 'q' to quit): ").strip()
             if idx.isdigit() and 1 <= int(idx) <= len(branches):
                 full_branch = branches[int(idx)-1] # origin/name
                 target = full_branch.replace("origin/", "", 1)
-                
+
                 # Check if local branch exists
                 check_local = self._git_run(["rev-parse", "--verify", target])
                 if check_local.returncode == 0:
@@ -331,7 +336,7 @@ class VortexCLI:
             res = self._git_run(["tag", "-l", "--sort=-v:refname"])
             if not res or res.returncode != 0: return
             tags = [t.strip() for t in res.stdout.split('\n') if t.strip()]
-            
+
             if not tags:
                 console.print("[yellow]No tags found.[/yellow]")
                 return
@@ -340,7 +345,7 @@ class VortexCLI:
             t.add_column("Idx", style="dim"); t.add_column("Tag Name", style="bold green")
             for i, tag in enumerate(tags[:20], 1): t.add_row(str(i), tag)
             console.print(t)
-            
+
             idx = self.session.prompt("\nSelect tag index (or 'q' to quit): ").strip()
             if idx.isdigit() and 1 <= int(idx) <= len(tags):
                 self._checkout_and_sync(tags[int(idx)-1])
@@ -350,12 +355,12 @@ class VortexCLI:
             res = self._git_run(["log", "--all", "-n", "30", "--pretty=format:%h|%ad|%an|%s|%d", "--date=short"])
             if not res or res.returncode != 0: return
             lines = res.stdout.split('\n')
-            
+
             t = Table(title="Recent Commits (All Branches)", box=box.ROUNDED)
             t.add_column("Idx", style="dim"); t.add_column("Hash", style="cyan")
             t.add_column("Date", style="dim"); t.add_column("Subject", style="bold green")
             t.add_column("Refs", style="yellow")
-            
+
             commits = []
             for i, line in enumerate(lines, 1):
                 parts = line.split('|')
@@ -365,7 +370,7 @@ class VortexCLI:
                     commits.append(h)
                     t.add_row(str(i), h, date, subj, refs)
             console.print(t)
-            
+
             idx = self.session.prompt("\nSelect commit index or enter hash (or 'q'): ").strip()
             if idx.isdigit() and 1 <= int(idx) <= len(commits):
                 self._checkout_and_sync(commits[int(idx)-1])
@@ -440,3 +445,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
