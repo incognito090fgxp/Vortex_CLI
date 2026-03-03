@@ -18,7 +18,7 @@ dependencies = [
 vortex = "vortex:main"
 
 [tool.setuptools]
-py-modules = ["vortex", "vortex_commands", "vortex_config"]
+py-modules = ["vortex", "vortex_commands", "vortex_config", "vortex_completer"]
 
 [tool.setuptools.dynamic]
 version = {attr = "vortex_config.VERSION"}
