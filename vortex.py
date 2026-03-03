@@ -4,11 +4,33 @@ import sys
 import copy
 import psycopg
 import re
+import subprocess
 from dotenv import load_dotenv, dotenv_values
 from typing import Optional, Iterable, List
 
 # SET PATHS
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+def find_project_root(start_dir):
+    """Find the project root by looking for .git or pyproject.toml."""
+    try:
+        res = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True, cwd=start_dir)
+        if res.returncode == 0:
+            return res.stdout.strip()
+    except Exception:
+        pass
+    
+    curr = start_dir
+    while curr != os.path.dirname(curr):
+        if os.path.exists(os.path.join(curr, "pyproject.toml")) or os.path.exists(os.path.join(curr, ".git")):
+            return curr
+        curr = os.path.dirname(curr)
+    return start_dir
+
+PROJECT_ROOT = find_project_root(BASE_DIR)
+
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
@@ -28,8 +50,8 @@ from vortex_commands import CLI_COMMANDS
 from vortex_config import config, VERSION
 from vortex_completer import CustomCompleter
 
-ENV_PATH = os.path.join(BASE_DIR, ".env")
-HISTORY_PATH = os.path.join(BASE_DIR, ".vortex_history")
+ENV_PATH = os.path.join(PROJECT_ROOT, ".env")
+HISTORY_PATH = os.path.join(PROJECT_ROOT, ".vortex_history")
 
 load_dotenv(ENV_PATH)
 console = Console()
@@ -58,7 +80,12 @@ class VortexCLI:
 
     def get_banner(self):
         width = console.size.width
-        if width < 65: return f"[bold cyan]🌀 VORTEX CLI[/bold cyan] [dim]v{VERSION}[/dim]\n"
+        if width < 65: 
+            return f"""[bold cyan]
+██╗  ██╗
+╚██╗██╔╝ 🌀 VORTEX CLI [dim]v{VERSION}[/dim]
+ ╚███╔╝  [/bold cyan]
+"""
         return f"""
 [bold cyan]
 ██╗   ██╗ ██████╗ ██████╗ ████████╗███████╗██╗  ██╗
@@ -159,11 +186,11 @@ class VortexCLI:
     def _git_run(self, args, capture=True):
         import subprocess
         try:
-            res = subprocess.run(["git"] + args, capture_output=capture, text=True, cwd=BASE_DIR)
+            res = subprocess.run(["git"] + args, capture_output=capture, text=True, cwd=PROJECT_ROOT)
             if res.returncode != 0 and capture:
                 if "dubious ownership" in res.stderr:
                     console.print(f"\n[yellow]Security issue detected.[/yellow] Run this fix:")
-                    console.print(f"[bold green]git config --global --add safe.directory {BASE_DIR}[/bold green]")
+                    console.print(f"[bold green]git config --global --add safe.directory {PROJECT_ROOT}[/bold green]")
             return res
         except Exception as e:
             console.print(f"[red]Git Error: {e}[/red]")
@@ -177,11 +204,13 @@ class VortexCLI:
         try:
             deps = []
             try:
-                import tomllib
-                toml_path = os.path.join(BASE_DIR, "pyproject.toml")
-                with open(toml_path, "rb") as f:
-                    data = tomllib.load(f)
-                deps = data.get("project", {}).get("dependencies", [])
+                # Always try to find pyproject.toml in the root
+                toml_path = os.path.join(PROJECT_ROOT, "pyproject.toml")
+                if os.path.exists(toml_path):
+                    import tomllib
+                    with open(toml_path, "rb") as f:
+                        data = tomllib.load(f)
+                    deps = data.get("project", {}).get("dependencies", [])
             except (ImportError, Exception):
                 pass
 
@@ -190,19 +219,33 @@ class VortexCLI:
                 cmd = [sys.executable, "-m", "pip", "install"] + deps + ["--quiet"]
             else:
                 # On Linux/Mac, standard install is fine
-                cmd = [sys.executable, "-m", "pip", "install", ".", "--quiet"]
+                # Use absolute path to the root to avoid '.' ambiguity
+                cmd = [sys.executable, "-m", "pip", "install", PROJECT_ROOT, "--quiet"]
 
-            res = subprocess.run(cmd, cwd=BASE_DIR, capture_output=True, text=True)
+            res = subprocess.run(cmd, cwd=PROJECT_ROOT, capture_output=True, text=True)
             if res.returncode == 0:
                 console.print("[green]✅ Dependencies up to date.[/green]")
             else:
+                # Error reporting
                 console.print(f"[red]❌ Dependency sync failed.[/red]")
                 if "WinError 32" in res.stderr or "ModuleNotFoundError" in res.stderr:
-                    console.print("[yellow]Hint: Your installation might be broken. Run: [bold]pip install -e .[/bold][/yellow]")
+                    console.print(f"[yellow]Hint: Your installation might be broken. Run: [bold]pip install -e {PROJECT_ROOT}[/bold][/yellow]")
                 else:
                     console.print(f"[dim]{res.stderr}[/dim]")
         except Exception as e:
             console.print(f"[red]Error syncing deps: {e}[/red]")
+
+    def _checkout_and_sync(self, target: str, pull: bool = False):
+        """Helper to checkout a target, pull if needed, sync deps and exit."""
+        console.print(f"[yellow]Checking out {target}...[/yellow]")
+        res = self._git_run(["checkout", target], capture=False)
+        if res and res.returncode == 0:
+            if pull:
+                console.print(f"[yellow]Pulling latest changes for {target}...[/yellow]")
+                self._git_run(["pull", "origin", target], capture=False)
+            self._sync_deps()
+            console.print("[bold green]✅ Updated successfully![/bold green]")
+            sys.exit(0)
 
     def cmd_update(self, args: str = "", silent=False):
         import subprocess
@@ -250,17 +293,9 @@ class VortexCLI:
                 console.print(f"[bold cyan]🚀 Update available! You are behind {upstream} by {behind} commit(s).[/bold cyan]")
                 if self.session.prompt("Update now? (y/n): ").lower().strip() == 'y':
                     console.print("[yellow]Updating...[/yellow]")
-                    # If detached, we probably want to pull the upstream branch
-                    if branch == "HEAD":
-                        target_branch = upstream.split("/")[-1]
-                        self._git_run(["checkout", target_branch], capture=False)
-                        self._git_run(["pull", "origin", target_branch], capture=False)
-                    else:
-                        self._git_run(["pull"], capture=False)
-                    
-                    self._sync_deps()
-                    console.print("[bold green]✅ Updated successfully![/bold green]")
-                    sys.exit(0)
+                    target_branch = upstream.split("/")[-1] if branch == "HEAD" else branch
+                    # If we are on a branch, pull normally. If detached, checkout and pull.
+                    self._checkout_and_sync(target_branch, pull=True)
             elif not silent:
                 console.print(f"[green]You are on the latest version (relative to {upstream}).[/green]")
 
@@ -279,22 +314,17 @@ class VortexCLI:
             if idx.isdigit() and 1 <= int(idx) <= len(branches):
                 full_branch = branches[int(idx)-1] # origin/name
                 target = full_branch.replace("origin/", "", 1)
-                console.print(f"[yellow]Switching to {target}...[/yellow]")
                 
                 # Check if local branch exists
                 check_local = self._git_run(["rev-parse", "--verify", target])
                 if check_local.returncode == 0:
-                    # Switch and PULL
-                    self._git_run(["checkout", target], capture=False)
-                    console.print(f"[yellow]Pulling latest changes for {target}...[/yellow]")
-                    self._git_run(["pull", "origin", target], capture=False)
+                    self._checkout_and_sync(target, pull=True)
                 else:
                     # Create new tracking branch
+                    console.print(f"[yellow]Creating tracking branch {target}...[/yellow]")
                     self._git_run(["checkout", "-b", target, full_branch], capture=False)
-                
-                self._sync_deps()
-                console.print(Panel(f"[bold green]✅ Successfully switched to {target}[/bold green]\nPlease restart Vortex CLI to apply changes.", border_style="green"))
-                sys.exit(0)
+                    self._sync_deps()
+                    sys.exit(0)
 
         elif sub == "tag":
             self._git_run(["fetch", "--tags"])
@@ -313,11 +343,7 @@ class VortexCLI:
             
             idx = self.session.prompt("\nSelect tag index (or 'q' to quit): ").strip()
             if idx.isdigit() and 1 <= int(idx) <= len(tags):
-                target = tags[int(idx)-1]
-                console.print(f"[yellow]Checking out tag {target}...[/yellow]")
-                self._git_run(["checkout", target], capture=False)
-                self._sync_deps()
-                sys.exit(0)
+                self._checkout_and_sync(tags[int(idx)-1])
 
         elif sub == "commit":
             self._git_run(["fetch", "--all"])
@@ -342,21 +368,12 @@ class VortexCLI:
             
             idx = self.session.prompt("\nSelect commit index or enter hash (or 'q'): ").strip()
             if idx.isdigit() and 1 <= int(idx) <= len(commits):
-                target = commits[int(idx)-1]
-                console.print(f"[yellow]Checking out {target}...[/yellow]")
-                self._git_run(["checkout", target], capture=False)
-                self._sync_deps()
-                sys.exit(0)
+                self._checkout_and_sync(commits[int(idx)-1])
             elif len(idx) >= 7:
-                self._git_run(["checkout", idx], capture=False)
-                self._sync_deps()
-                sys.exit(0)
+                self._checkout_and_sync(idx)
 
         else:
-            console.print(f"[yellow]Checking out '{sub}'...[/yellow]")
-            res = self._git_run(["checkout", sub], capture=False)
-            if res and res.returncode == 0:
-                sys.exit(0)
+            self._checkout_and_sync(sub)
 
     def cmd_query(self, sql: str):
         if not sql: return
@@ -403,7 +420,9 @@ class VortexCLI:
                 elif cmd == 'check': self.cmd_check()
                 elif cmd == 'tables': self.cmd_tables()
                 elif cmd == 'query': self.cmd_query(arg)
-                elif cmd == 'clear': console.clear(); console.print(self.get_banner())
+                elif cmd == 'clear': 
+                    os.system('cls' if os.name == 'nt' else 'clear')
+                    console.print(self.get_banner())
                 else:
                     if cmd in ('select', 'insert', 'update', 'delete', 'create', 'drop', 'with'): self.cmd_query(text)
                     else: console.print(f"[red]Unknown: {cmd}[/red]")
