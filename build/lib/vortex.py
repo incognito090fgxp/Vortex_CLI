@@ -4,49 +4,11 @@ import sys
 import copy
 import psycopg
 import re
-import subprocess
 from dotenv import load_dotenv, dotenv_values
 from typing import Optional, Iterable, List
 
 # SET PATHS
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-def find_project_root():
-    """Robustly find the project root by searching for pyproject.toml."""
-    # 1. Try search upwards starting from current file location
-    curr = os.path.abspath(BASE_DIR)
-    while curr != os.path.dirname(curr):
-        if os.path.exists(os.path.join(curr, "pyproject.toml")):
-            return curr
-        curr = os.path.dirname(curr)
-
-    # 2. Try detection via venv path (sys.executable)
-    try:
-        exe_dir = os.path.dirname(sys.executable)
-        if os.path.basename(exe_dir).lower() in ('bin', 'scripts'):
-            venv_dir = os.path.dirname(exe_dir)
-            potential_root = os.path.dirname(venv_dir)
-            if os.path.exists(os.path.join(potential_root, "pyproject.toml")):
-                return potential_root
-    except:
-        pass
-
-    # 3. Fallback to git
-    try:
-        res = subprocess.run(["git", "rev-parse", "--show-toplevel"], 
-                             capture_output=True, text=True, cwd=BASE_DIR)
-        if res.returncode == 0:
-            return res.stdout.strip()
-    except Exception:
-        pass
-
-    return os.path.abspath(BASE_DIR)
-
-PROJECT_ROOT = find_project_root()
-
-# Ensure PROJECT_ROOT and BASE_DIR are in path
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
@@ -66,8 +28,8 @@ from vortex_commands import CLI_COMMANDS
 from vortex_config import config, VERSION
 from vortex_completer import CustomCompleter
 
-ENV_PATH = os.path.join(PROJECT_ROOT, ".env")
-HISTORY_PATH = os.path.join(PROJECT_ROOT, ".vortex_history")
+ENV_PATH = os.path.join(BASE_DIR, ".env")
+HISTORY_PATH = os.path.join(BASE_DIR, ".vortex_history")
 
 load_dotenv(ENV_PATH)
 console = Console()
@@ -96,12 +58,7 @@ class VortexCLI:
 
     def get_banner(self):
         width = console.size.width
-        if width < 65: 
-            return f"""[bold cyan]
-██╗  ██╗
-╚██╗██╔╝ 🌀 VORTEX CLI [dim]v{VERSION}[/dim]
- ╚███╔╝  [/bold cyan]
-"""
+        if width < 65: return f"[bold cyan]🌀 VORTEX CLI[/bold cyan] [dim]v{VERSION}[/dim]\n"
         return f"""
 [bold cyan]
 ██╗   ██╗ ██████╗ ██████╗ ████████╗███████╗██╗  ██╗
@@ -202,85 +159,31 @@ class VortexCLI:
     def _git_run(self, args, capture=True):
         import subprocess
         try:
-            res = subprocess.run(["git"] + args, capture_output=capture, text=True, cwd=PROJECT_ROOT)
+            res = subprocess.run(["git"] + args, capture_output=capture, text=True, cwd=BASE_DIR)
             if res.returncode != 0 and capture:
                 if "dubious ownership" in res.stderr:
                     console.print(f"\n[yellow]Security issue detected.[/yellow] Run this fix:")
-                    console.print(f"[bold green]git config --global --add safe.directory {PROJECT_ROOT}[/bold green]")
+                    console.print(f"[bold green]git config --global --add safe.directory {BASE_DIR}[/bold green]")
             return res
         except Exception as e:
             console.print(f"[red]Git Error: {e}[/red]")
             return None
 
-    def _get_installed_deps(self):
-        """Get list of installed packages in the current venv."""
-        import importlib.metadata
-        return {dist.metadata['Name'].lower() for dist in importlib.metadata.distributions()}
-
-    def _get_required_deps(self):
-        """Parse dependencies from pyproject.toml."""
-        toml_path = os.path.join(PROJECT_ROOT, "pyproject.toml")
-        if not os.path.exists(toml_path):
-            return []
-        try:
-            import tomllib
-            with open(toml_path, "rb") as f:
-                data = tomllib.load(f)
-            return data.get("project", {}).get("dependencies", [])
-        except:
-            return []
-
-    def _sync_deps(self, force=False):
-        """Sync dependencies and core logic."""
+    def _sync_deps(self):
+        """Cross-platform dependency sync using current python interpreter."""
         import subprocess
         console.print("[yellow]Checking & Syncing dependencies...[/yellow]")
-        
-        required = self._get_required_deps()
-        installed = self._get_installed_deps()
-        
-        missing = []
-        for dep in required:
-            name = re.split('[<>=!]', dep)[0].strip().lower()
-            if name not in installed:
-                missing.append(dep)
-
-        # If everything is installed and no force requested, skip pip
-        if not missing and not force:
-            console.print("[green]✅ Dependencies already satisfied.[/green]")
-            return
-
         try:
-            # 2. Run PIP install
-            if os.name == 'nt':
-                # Windows: install list to avoid locking
-                cmd = [sys.executable, "-m", "pip", "install"] + required + ["--quiet"]
-            else:
-                # Unix/Termux: Force install from absolute PROJECT_ROOT
-                # Using -e (editable) to link site-packages directly to the repo
-                cmd = [sys.executable, "-m", "pip", "install", "-e", PROJECT_ROOT, "--upgrade", "--quiet"]
-
-            res = subprocess.run(cmd, cwd=PROJECT_ROOT, capture_output=True, text=True)
+            # We use -m pip install . to install dependencies defined in pyproject.toml
+            # Adding --upgrade to ensure we get latest versions if they changed
+            cmd = [sys.executable, "-m", "pip", "install", ".", "--quiet"]
+            res = subprocess.run(cmd, cwd=BASE_DIR, capture_output=True, text=True)
             if res.returncode == 0:
-                console.print("[green]✅ Dependencies and Core synchronized.[/green]")
+                console.print("[green]✅ Dependencies up to date.[/green]")
             else:
-                console.print(f"[red]❌ Dependency sync failed.[/red]")
-                console.print(f"[dim]{res.stderr}[/dim]")
+                console.print(f"[red]❌ Dependency sync failed: {res.stderr}[/red]")
         except Exception as e:
             console.print(f"[red]Error syncing deps: {e}[/red]")
-
-    def _checkout_and_sync(self, target: str, pull: bool = False):
-        """Helper to checkout a target, pull if needed, sync deps and exit."""
-        console.print(f"[yellow]Checking out {target}...[/yellow]")
-        res = self._git_run(["checkout", target], capture=False)
-        if res and res.returncode == 0:
-            if pull:
-                console.print(f"[yellow]Pulling latest changes for {target}...[/yellow]")
-                self._git_run(["pull", "origin", target], capture=False)
-            
-            # Forced sync after checkout to update logic in venv
-            self._sync_deps(force=True)
-            console.print("[bold green]✅ Updated successfully![/bold green]")
-            sys.exit(0)
 
     def cmd_update(self, args: str = "", silent=False):
         import subprocess
@@ -299,18 +202,28 @@ class VortexCLI:
             self._git_run(["fetch", "--all", "--quiet"])
 
             if branch == "HEAD":
-                # We are in detached HEAD
+                # We are in detached HEAD (likely after UPDATE COMMIT or UPDATE TAG)
+                # Try to find which remote branch we might be tracking
                 res = self._git_run(["branch", "-a", "--contains", "HEAD"])
                 branches = res.stdout.split("\n") if res else []
+                # Look for something like 'remotes/origin/FIX'
                 remote_branches = [b.strip().replace("remotes/", "") for b in branches if "remotes/origin/" in b and "HEAD" not in b]
-                upstream = remote_branches[0] if remote_branches else "origin/main"
+                
+                if remote_branches:
+                    upstream = remote_branches[0] # Use the first matching remote branch
+                    if not silent: console.print(f"[dim]Detached HEAD detected. Comparing with {upstream}...[/dim]")
+                else:
+                    upstream = "origin/main"
             else:
+                # Normal branch tracking
                 res = self._git_run(["rev-parse", "--abbrev-ref", f"{branch}@{{u}}"])
                 upstream = res.stdout.strip() if res.returncode == 0 else f"origin/{branch}"
 
             # Compare
             res = self._git_run(["rev-list", "--count", f"HEAD..{upstream}"])
-            if not res or res.returncode != 0: return
+            if not res or res.returncode != 0: 
+                if not silent: console.print(f"[red]Could not compare with {upstream}[/red]")
+                return
             
             behind = int(res.stdout.strip() or 0)
 
@@ -318,8 +231,17 @@ class VortexCLI:
                 console.print(f"[bold cyan]🚀 Update available! You are behind {upstream} by {behind} commit(s).[/bold cyan]")
                 if self.session.prompt("Update now? (y/n): ").lower().strip() == 'y':
                     console.print("[yellow]Updating...[/yellow]")
-                    target_branch = upstream.split("/")[-1] if branch == "HEAD" else branch
-                    self._checkout_and_sync(target_branch, pull=True)
+                    # If detached, we probably want to pull the upstream branch
+                    if branch == "HEAD":
+                        target_branch = upstream.split("/")[-1]
+                        self._git_run(["checkout", target_branch], capture=False)
+                        self._git_run(["pull", "origin", target_branch], capture=False)
+                    else:
+                        self._git_run(["pull"], capture=False)
+                    
+                    self._sync_deps()
+                    console.print("[bold green]✅ Updated successfully![/bold green]")
+                    sys.exit(0)
             elif not silent:
                 console.print(f"[green]You are on the latest version (relative to {upstream}).[/green]")
 
@@ -336,17 +258,24 @@ class VortexCLI:
             
             idx = self.session.prompt("\nSelect branch index (or 'q' to quit): ").strip()
             if idx.isdigit() and 1 <= int(idx) <= len(branches):
-                full_branch = branches[int(idx)-1]
+                full_branch = branches[int(idx)-1] # origin/name
                 target = full_branch.replace("origin/", "", 1)
+                console.print(f"[yellow]Switching to {target}...[/yellow]")
                 
+                # Check if local branch exists
                 check_local = self._git_run(["rev-parse", "--verify", target])
                 if check_local.returncode == 0:
-                    self._checkout_and_sync(target, pull=True)
+                    # Switch and PULL
+                    self._git_run(["checkout", target], capture=False)
+                    console.print(f"[yellow]Pulling latest changes for {target}...[/yellow]")
+                    self._git_run(["pull", "origin", target], capture=False)
                 else:
-                    console.print(f"[yellow]Creating tracking branch {target}...[/yellow]")
+                    # Create new tracking branch
                     self._git_run(["checkout", "-b", target, full_branch], capture=False)
-                    self._sync_deps(force=True)
-                    sys.exit(0)
+                
+                self._sync_deps()
+                console.print(Panel(f"[bold green]✅ Successfully switched to {target}[/bold green]\nPlease restart Vortex CLI to apply changes.", border_style="green"))
+                sys.exit(0)
 
         elif sub == "tag":
             self._git_run(["fetch", "--tags"])
@@ -365,7 +294,11 @@ class VortexCLI:
             
             idx = self.session.prompt("\nSelect tag index (or 'q' to quit): ").strip()
             if idx.isdigit() and 1 <= int(idx) <= len(tags):
-                self._checkout_and_sync(tags[int(idx)-1])
+                target = tags[int(idx)-1]
+                console.print(f"[yellow]Checking out tag {target}...[/yellow]")
+                self._git_run(["checkout", target], capture=False)
+                self._sync_deps()
+                sys.exit(0)
 
         elif sub == "commit":
             self._git_run(["fetch", "--all"])
@@ -390,12 +323,21 @@ class VortexCLI:
             
             idx = self.session.prompt("\nSelect commit index or enter hash (or 'q'): ").strip()
             if idx.isdigit() and 1 <= int(idx) <= len(commits):
-                self._checkout_and_sync(commits[int(idx)-1])
+                target = commits[int(idx)-1]
+                console.print(f"[yellow]Checking out {target}...[/yellow]")
+                self._git_run(["checkout", target], capture=False)
+                self._sync_deps()
+                sys.exit(0)
             elif len(idx) >= 7:
-                self._checkout_and_sync(idx)
+                self._git_run(["checkout", idx], capture=False)
+                self._sync_deps()
+                sys.exit(0)
 
         else:
-            self._checkout_and_sync(sub)
+            console.print(f"[yellow]Checking out '{sub}'...[/yellow]")
+            res = self._git_run(["checkout", sub], capture=False)
+            if res and res.returncode == 0:
+                sys.exit(0)
 
     def cmd_query(self, sql: str):
         if not sql: return
@@ -442,9 +384,7 @@ class VortexCLI:
                 elif cmd == 'check': self.cmd_check()
                 elif cmd == 'tables': self.cmd_tables()
                 elif cmd == 'query': self.cmd_query(arg)
-                elif cmd == 'clear': 
-                    os.system('cls' if os.name == 'nt' else 'clear')
-                    console.print(self.get_banner())
+                elif cmd == 'clear': console.clear(); console.print(self.get_banner())
                 else:
                     if cmd in ('select', 'insert', 'update', 'delete', 'create', 'drop', 'with'): self.cmd_query(text)
                     else: console.print(f"[red]Unknown: {cmd}[/red]")
