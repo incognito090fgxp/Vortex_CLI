@@ -292,13 +292,16 @@ class VortexCLI:
         if sub == "check":
             if not silent: console.print("[yellow]Checking for updates...[/yellow]")
             
+            # Fetch everything FIRST to ensure we have the latest history
+            self._git_run(["fetch", "--all", "--tags", "--quiet"])
+
             # Get current branch
             res = self._git_run(["rev-parse", "--abbrev-ref", "HEAD"])
             if not res or res.returncode != 0: return
             branch = res.stdout.strip()
 
-            # Fetch everything
-            self._git_run(["fetch", "--all", "--tags", "--quiet"])
+            if branch != "HEAD":
+                config.set("last_branch", branch)
 
             # Feature only for 'main' branch
             if branch == "main":
@@ -342,13 +345,22 @@ class VortexCLI:
                     console.print("[green]You are on the latest version.[/green]")
                 return
 
-            # Legacy logic for other branches or detached HEAD
+            # Logic for other branches or detached HEAD
             if branch == "HEAD":
                 # We are in detached HEAD
-                res = self._git_run(["branch", "-a", "--contains", "HEAD"])
-                branches = res.stdout.split("\n") if res else []
-                remote_branches = [b.strip().replace("remotes/", "") for b in branches if "remotes/origin/" in b and "HEAD" not in b]
-                upstream = remote_branches[0] if remote_branches else "origin/main"
+                last_branch = config.get("last_branch") or "main"
+                upstream = f"origin/{last_branch}"
+                
+                # Check if this branch actually contains current HEAD to be sure
+                res_check = self._git_run(["branch", "-r", "--contains", "HEAD"])
+                contained_remotes = res_check.stdout.split("\n") if res_check else []
+                contained_remotes = [b.strip().replace("remotes/", "") for b in contained_remotes if "origin/" in b and "HEAD" not in b]
+                
+                if upstream not in contained_remotes and contained_remotes:
+                    # If last_branch doesn't contain us, fallback to first remote containing us
+                    upstream = contained_remotes[0]
+                elif not contained_remotes:
+                    upstream = f"origin/{last_branch}" # fallback
             else:
                 res = self._git_run(["rev-parse", "--abbrev-ref", f"{branch}@{{u}}"])
                 upstream = res.stdout.strip() if res.returncode == 0 else f"origin/{branch}"

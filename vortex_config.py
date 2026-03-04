@@ -5,13 +5,14 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SETTINGS_PATH = os.path.join(BASE_DIR, ".vortex_settings.json")
 
 # Версия: Release.Beta.DEV.FIX
-VERSION = "0.3.1.0"
+VERSION = "0.3.1.1"
 
 # Настройки по умолчанию (приходят из гита)
 DEFAULT_SETTINGS = {
     "auto_update": True,
     "theme": "dark",
     "history_limit": 1000,
+    "last_branch": "main",
 }
 
 class VortexConfig:
