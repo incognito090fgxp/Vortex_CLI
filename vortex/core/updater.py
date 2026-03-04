@@ -10,7 +10,7 @@ from rich.table import Table
 from rich.panel import Panel
 from rich import box
 
-from .config import config, PROJECT_ROOT
+from ..config.manager import config, PROJECT_ROOT
 
 console = Console()
 

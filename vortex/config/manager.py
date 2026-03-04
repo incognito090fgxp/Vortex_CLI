@@ -3,11 +3,11 @@ import json
 import os
 
 # Версия: Release.Beta.DEV.FIX
-VERSION = "0.3.1.4"
+VERSION = "0.3.1.5"
 
 # Пути
 # PACKAGE_DIR: D:\Project\SolvexIT\VPN\CLI\Vortex_CLI\vortex
-PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
+PACKAGE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # PROJECT_ROOT: D:\Project\SolvexIT\VPN\CLI\Vortex_CLI
 PROJECT_ROOT = os.path.dirname(PACKAGE_DIR)
 

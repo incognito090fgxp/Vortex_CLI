@@ -13,10 +13,10 @@ from prompt_toolkit.styles import Style as PromptStyle
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.shortcuts import CompleteStyle
 
-from .config import config, VERSION, PROJECT_ROOT
-from .commands import CLI_COMMANDS
-from .completer import CustomCompleter
-from .db import DatabaseManager
+from ..config.manager import config, VERSION, PROJECT_ROOT
+from ..ui.commands import CLI_COMMANDS
+from ..ui.completer import CustomCompleter
+from ..database.db import DatabaseManager
 from .updater import UpdateManager
 
 ENV_PATH = os.path.join(PROJECT_ROOT, ".env")

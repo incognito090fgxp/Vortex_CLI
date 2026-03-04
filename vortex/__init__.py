@@ -1,3 +1,3 @@
-from .cli import main
+from .core.cli import main
 
 __all__ = ["main"]
