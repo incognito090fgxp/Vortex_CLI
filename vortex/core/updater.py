@@ -72,7 +72,6 @@ class UpdateManager:
             if os.name == 'nt':
                 cmd = [sys.executable, "-m", "pip", "install"] + required + ["--quiet"]
             else:
-                # Use --no-deps if needed, but normally we want dependencies
                 cmd = [sys.executable, "-m", "pip", "install", "-e", PROJECT_ROOT, "--upgrade", "--quiet"]
 
             res = subprocess.run(cmd, cwd=PROJECT_ROOT, capture_output=True, text=True)
@@ -81,7 +80,6 @@ class UpdateManager:
             else:
                 console.print(f"[red]❌ Dependency sync failed.[/red]")
                 console.print(f"[dim]{res.stderr}[/dim]")
-                # If editable install fails, fallback to normal install of dependencies
                 if not os.name == 'nt':
                     console.print("[yellow]Retrying with simple dependency install...[/yellow]")
                     subprocess.run([sys.executable, "-m", "pip", "install"] + required + ["--quiet"], cwd=PROJECT_ROOT)
@@ -90,29 +88,22 @@ class UpdateManager:
 
     def _checkout_and_sync(self, target: str, pull: bool = False):
         console.print(f"[yellow]Forcing checkout to {target}...[/yellow]")
-
-        # Ensure we are not tracking a local branch that diverged
         if pull:
-            self._git_run(["fetch", "origin", target])
+            self._git_run(["fetch", "origin", target, "--tags", "--force"])
             target_ref = f"origin/{target}"
         else:
             target_ref = target
 
-        # FORCE RESET TO REMOTE state instead of pull to avoid reconciliation issues
         res = self._git_run(["reset", "--hard", target_ref], capture=True)
-
         if res and res.returncode == 0:
-            # CLEANUP BUILD CACHE
             console.print("[yellow]Cleaning build artifacts...[/yellow]")
             for p in ["build", ".build", "dist", "vortex_cli.egg-info"]:
                 path = os.path.join(PROJECT_ROOT, p)
                 if os.path.exists(path): shutil.rmtree(path, ignore_errors=True)
-
             self._sync_deps(force=True)
             console.print("[bold green]✅ Updated successfully![/bold green]")
             sys.exit(0)
         else:
-            # Fallback to checkout if reset failed (might be a tag)
             res = self._git_run(["checkout", "-f", target], capture=True)
             if res and res.returncode == 0:
                 self._sync_deps(force=True)
@@ -122,14 +113,59 @@ class UpdateManager:
                 console.print(f"[red]❌ Update failed for {target}[/red]")
                 if res: console.print(f"[dim]{res.stderr}[/dim]")
 
+    def _pager(self, items, title, columns, page_size=10):
+        """Interactive paginated selector."""
+        current_page = 0
+        total_items = len(items)
+        if total_items == 0:
+            console.print("[yellow]No items found.[/yellow]")
+            return None
+
+        while True:
+            total_pages = (total_items + page_size - 1) // page_size
+            start = current_page * page_size
+            end = min(start + page_size, total_items)
+            page_items = items[start:end]
+
+            t = Table(title=f"{title} (Page {current_page + 1}/{total_pages})", box=box.ROUNDED)
+            t.add_column("Idx", style="dim", width=4)
+            for col in columns:
+                t.add_column(col['name'], style=col.get('style', ''))
+
+            for i, item in enumerate(page_items, start + 1):
+                t.add_row(str(i), *[str(item.get(c['key'], '')) for c in columns])
+
+            console.print(t)
+            nav = []
+            if current_page > 0: nav.append("[bold cyan]p[/bold cyan]: prev")
+            if current_page < total_pages - 1: nav.append("[bold cyan]n[/bold cyan]: next")
+            nav.append("[bold cyan]q[/bold cyan]: quit")
+            
+            console.print(f"Navigation: {' | '.join(nav)}")
+            choice = self.session.prompt("Enter index or command: ").strip().lower()
+
+            if choice == 'q': return None
+            elif choice == 'n' and current_page < total_pages - 1: current_page += 1
+            elif choice == 'p' and current_page > 0: current_page -= 1
+            elif choice.isdigit():
+                idx = int(choice)
+                if 1 <= idx <= total_items:
+                    return items[idx-1]
+                else:
+                    console.print(f"[red]Invalid index: {idx}[/red]")
+            else:
+                if choice not in ('n', 'p'):
+                    console.print(f"[red]Unknown command: {choice}[/red]")
+
     def cmd_update(self, args: str = "", silent=False):
         parts = args.split()
         sub = parts[0].lower() if parts else "check"
 
-        if sub == "check":
-            if not silent: console.print("[yellow]Checking for updates...[/yellow]")
-            self._git_run(["fetch", "--all", "--tags", "--quiet"])
+        if not silent or sub != "check":
+            console.print("[yellow]Syncing with remote...[/yellow]")
+        self._git_run(["fetch", "--all", "--tags", "--force", "--quiet"])
 
+        if sub == "check":
             res = self._git_run(["rev-parse", "--abbrev-ref", "HEAD"])
             if not res or res.returncode != 0: return
             branch = res.stdout.strip()
@@ -181,73 +217,51 @@ class UpdateManager:
             elif not silent: console.print(f"[green]You are on the latest version (relative to {upstream}).[/green]")
 
         elif sub == "branch":
-            self._git_run(["fetch", "--all"])
             res_b = self._git_run(["branch", "-r"])
             if not res_b or res_b.returncode != 0: return
-            branches = [b.strip() for b in res_b.stdout.split('\n') if b.strip() and '->' not in b]
-
-            t = Table(title="Remote Branches", box=box.ROUNDED)
-            t.add_column("Idx", style="dim"); t.add_column("Branch Name", style="bold green")
-            for i, b in enumerate(branches, 1): t.add_row(str(i), b)
-            console.print(t)
-
-            idx = self.session.prompt("\nSelect branch index (or 'q' to quit): ").strip()
-            if idx.isdigit() and 1 <= int(idx) <= len(branches):
-                full = branches[int(idx)-1]
-                target = full.replace("origin/", "", 1)
+            branches = [{"name": b.strip()} for b in res_b.stdout.split('\n') if b.strip() and '->' not in b]
+            
+            selected = self._pager(branches, "Remote Branches", [{"name": "Branch Name", "key": "name", "style": "bold green"}])
+            if selected:
+                target = selected['name'].replace("origin/", "", 1)
                 if self._git_run(["rev-parse", "--verify", target]).returncode == 0:
                     self._checkout_and_sync(target, pull=True)
                 else:
                     console.print(f"[yellow]Creating tracking branch {target}...[/yellow]")
-                    self._git_run(["checkout", "-b", target, full], capture=False)
+                    self._git_run(["checkout", "-b", target, selected['name']], capture=False)
                     self._sync_deps(force=True)
                     sys.exit(0)
 
         elif sub == "tag":
-            self._git_run(["fetch", "--tags"])
             res_t = self._git_run(["tag", "-l", "--sort=-v:refname"])
             if not res_t or res_t.returncode != 0: return
-            tags = [t.strip() for t in res_t.stdout.split('\n') if t.strip()]
-
-            if not tags:
-                console.print("[yellow]No tags found.[/yellow]")
-                return
-
-            t = Table(title="Recent Tags", box=box.ROUNDED)
-            t.add_column("Idx", style="dim"); t.add_column("Tag Name", style="bold green")
-            for i, tag in enumerate(tags[:20], 1): t.add_row(str(i), tag)
-            console.print(t)
-
-            idx = self.session.prompt("\nSelect tag index (or 'q' to quit): ").strip()
-            if idx.isdigit() and 1 <= int(idx) <= len(tags):
-                self._checkout_and_sync(tags[int(idx)-1])
+            tags = [{"name": t.strip()} for t in res_t.stdout.split('\n') if t.strip()]
+            
+            selected = self._pager(tags, "Recent Tags", [{"name": "Tag Name", "key": "name", "style": "bold green"}])
+            if selected:
+                self._checkout_and_sync(selected['name'])
 
         elif sub == "commit":
-            self._git_run(["fetch", "--all"])
-            res = self._git_run(["log", "--all", "-n", "30", "--pretty=format:%h|%ad|%an|%s|%d", "--date=short"])
+            res = self._git_run(["log", "--all", "-n", "100", "--pretty=format:%h|%ad|%an|%s|%d", "--date=short"])
             if not res or res.returncode != 0: return
-            lines = res.stdout.split('\n')
-
-            t = Table(title="Recent Commits (All Branches)", box=box.ROUNDED)
-            t.add_column("Idx", style="dim"); t.add_column("Hash", style="cyan")
-            t.add_column("Date", style="dim"); t.add_column("Subject", style="bold green")
-            t.add_column("Refs", style="yellow")
-
             commits = []
-            for i, line in enumerate(lines, 1):
+            for line in res.stdout.split('\n'):
                 parts = line.split('|')
                 if len(parts) >= 4:
-                    h, date, author, subj = parts[:4]
-                    refs = parts[4] if len(parts) > 4 else ""
-                    commits.append(h)
-                    t.add_row(str(i), h, date, subj, refs)
-            console.print(t)
+                    commits.append({
+                        "hash": parts[0],
+                        "date": parts[1],
+                        "subj": parts[3],
+                        "refs": parts[4] if len(parts) > 4 else ""
+                    })
 
-            idx = self.session.prompt("\nSelect commit index or enter hash (or 'q'): ").strip()
-            if idx.isdigit() and 1 <= int(idx) <= len(commits):
-                self._checkout_and_sync(commits[int(idx)-1])
-            elif len(idx) >= 7:
-                self._checkout_and_sync(idx)
+            selected = self._pager(commits, "Recent Commits", [
+                {"name": "Hash", "key": "hash", "style": "cyan"},
+                {"name": "Date", "key": "date", "style": "dim"},
+                {"name": "Subject", "key": "subj", "style": "bold green"},
+                {"name": "Refs", "key": "refs", "style": "yellow"}
+            ])
+            if selected:
+                self._checkout_and_sync(selected['hash'])
         else:
             self._checkout_and_sync(sub)
-
