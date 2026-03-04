@@ -1,15 +1,17 @@
+# -*- coding: utf-8 -*-
 import json
 import os
 
-# Путь к директории этого файла (внутри пакета)
+# Версия: Release.Beta.DEV.FIX
+VERSION = "0.3.1.4"
+
+# Пути
+# PACKAGE_DIR: D:\Project\SolvexIT\VPN\CLI\Vortex_CLI\vortex
 PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
-# Путь к корню проекта (на уровень выше пакета)
+# PROJECT_ROOT: D:\Project\SolvexIT\VPN\CLI\Vortex_CLI
 PROJECT_ROOT = os.path.dirname(PACKAGE_DIR)
 
 SETTINGS_PATH = os.path.join(PROJECT_ROOT, ".vortex_settings.json")
-
-# Версия: Release.Beta.DEV.FIX
-VERSION = "0.3.2.0"
 
 # Настройки по умолчанию
 DEFAULT_SETTINGS = {
@@ -25,7 +27,6 @@ class VortexConfig:
         self.load()
 
     def load(self):
-        """Загружает пользовательские настройки поверх дефолтных"""
         if os.path.exists(SETTINGS_PATH):
             try:
                 with open(SETTINGS_PATH, "r", encoding="utf-8") as f:
@@ -35,7 +36,6 @@ class VortexConfig:
                 pass
 
     def save(self):
-        """Сохраняет только измененные настройки"""
         try:
             with open(SETTINGS_PATH, "w", encoding="utf-8") as f:
                 json.dump(self.settings, f, indent=4)

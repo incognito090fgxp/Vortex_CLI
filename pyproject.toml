@@ -16,7 +16,7 @@ dependencies = [
 ]
 
 [project.scripts]
-vortex = "vortex.cli:main"
+vortex = "vortex:main"
 
 [tool.setuptools]
 packages = ["vortex"]

@@ -1,12 +1,15 @@
 # -*- coding: utf-8 -*-
 import os
 import sys
+import re
 import subprocess
 import shutil
 import glob
-import re
 from rich.console import Console
 from rich.table import Table
+from rich.panel import Panel
+from rich import box
+
 from .config import config, PROJECT_ROOT
 
 console = Console()
@@ -45,7 +48,7 @@ class UpdateManager:
         except:
             return []
 
-    def sync_deps(self, force=False):
+    def _sync_deps(self, force=False):
         console.print("[yellow]Checking & Syncing dependencies...[/yellow]")
         required = self._get_required_deps()
         installed = self._get_installed_deps()
@@ -53,22 +56,25 @@ class UpdateManager:
         missing = []
         for dep in required:
             name = re.split('[<>=!]', dep)[0].strip().lower()
-            if name not in installed: missing.append(dep)
+            if name not in installed:
+                missing.append(dep)
 
         if not missing and not force:
             console.print("[green]✅ Dependencies already satisfied.[/green]")
             return
 
         try:
-            cmd = [sys.executable, "-m", "pip", "install"]
-            if os.name == 'nt': cmd += required + ["--quiet"]
-            else: cmd += ["-e", PROJECT_ROOT, "--upgrade", "--quiet"]
+            if os.name == 'nt':
+                cmd = [sys.executable, "-m", "pip", "install"] + required + ["--quiet"]
+            else:
+                cmd = [sys.executable, "-m", "pip", "install", "-e", PROJECT_ROOT, "--upgrade", "--quiet"]
 
             res = subprocess.run(cmd, cwd=PROJECT_ROOT, capture_output=True, text=True)
             if res.returncode == 0:
                 console.print("[green]✅ Dependencies and Core synchronized.[/green]")
             else:
-                console.print(f"[red]❌ Dependency sync failed.[/red]\n[dim]{res.stderr}[/dim]")
+                console.print(f"[red]❌ Dependency sync failed.[/red]")
+                console.print(f"[dim]{res.stderr}[/dim]")
         except Exception as e:
             console.print(f"[red]Error syncing deps: {e}[/red]")
 
@@ -80,6 +86,7 @@ class UpdateManager:
                 console.print(f"[yellow]Pulling latest changes for {target}...[/yellow]")
                 self._git_run(["pull", "origin", target], capture=False)
             
+            # CLEANUP BUILD CACHE
             console.print("[yellow]Cleaning build artifacts...[/yellow]")
             for p in ["build", ".build"]:
                 path = os.path.join(PROJECT_ROOT, p)
@@ -87,14 +94,14 @@ class UpdateManager:
             for egg in glob.glob(os.path.join(PROJECT_ROOT, "*.egg-info")):
                 shutil.rmtree(egg, ignore_errors=True)
 
-            self.sync_deps(force=True)
+            self._sync_deps(force=True)
             console.print("[bold green]✅ Updated successfully![/bold green]")
             sys.exit(0)
         else:
             console.print(f"[red]❌ Checkout failed for {target}[/red]")
             if res: console.print(f"[dim]{res.stderr}[/dim]")
 
-    def check_for_updates(self, args: str = "", silent=False):
+    def cmd_update(self, args: str = "", silent=False):
         parts = args.split()
         sub = parts[0].lower() if parts else "check"
 
@@ -153,12 +160,16 @@ class UpdateManager:
 
         elif sub == "branch":
             self._git_run(["fetch", "--all"])
-            branches = [b.strip() for b in self._git_run(["branch", "-r"]).stdout.split('\n') if b.strip() and '->' not in b]
+            res_b = self._git_run(["branch", "-r"])
+            if not res_b or res_b.returncode != 0: return
+            branches = [b.strip() for b in res_b.stdout.split('\n') if b.strip() and '->' not in b]
+            
             t = Table(title="Remote Branches", box=box.ROUNDED)
             t.add_column("Idx", style="dim"); t.add_column("Branch Name", style="bold green")
             for i, b in enumerate(branches, 1): t.add_row(str(i), b)
             console.print(t)
-            idx = self.session.prompt("\nSelect branch index (or 'q'): ").strip()
+            
+            idx = self.session.prompt("\nSelect branch index (or 'q' to quit): ").strip()
             if idx.isdigit() and 1 <= int(idx) <= len(branches):
                 full = branches[int(idx)-1]
                 target = full.replace("origin/", "", 1)
@@ -167,34 +178,53 @@ class UpdateManager:
                 else:
                     console.print(f"[yellow]Creating tracking branch {target}...[/yellow]")
                     self._git_run(["checkout", "-b", target, full], capture=False)
-                    self.sync_deps(force=True)
+                    self._sync_deps(force=True)
                     sys.exit(0)
 
         elif sub == "tag":
             self._git_run(["fetch", "--tags"])
-            tags = [t.strip() for t in self._git_run(["tag", "-l", "--sort=-v:refname"]).stdout.split('\n') if t.strip()]
-            if not tags: return console.print("[yellow]No tags found.[/yellow]")
+            res_t = self._git_run(["tag", "-l", "--sort=-v:refname"])
+            if not res_t or res_t.returncode != 0: return
+            tags = [t.strip() for t in res_t.stdout.split('\n') if t.strip()]
+            
+            if not tags:
+                console.print("[yellow]No tags found.[/yellow]")
+                return
+
             t = Table(title="Recent Tags", box=box.ROUNDED)
             t.add_column("Idx", style="dim"); t.add_column("Tag Name", style="bold green")
             for i, tag in enumerate(tags[:20], 1): t.add_row(str(i), tag)
             console.print(t)
-            idx = self.session.prompt("\nSelect tag index (or 'q'): ").strip()
-            if idx.isdigit() and 1 <= int(idx) <= len(tags): self._checkout_and_sync(tags[int(idx)-1])
+            
+            idx = self.session.prompt("\nSelect tag index (or 'q' to quit): ").strip()
+            if idx.isdigit() and 1 <= int(idx) <= len(tags):
+                self._checkout_and_sync(tags[int(idx)-1])
 
         elif sub == "commit":
             self._git_run(["fetch", "--all"])
             res = self._git_run(["log", "--all", "-n", "30", "--pretty=format:%h|%ad|%an|%s|%d", "--date=short"])
+            if not res or res.returncode != 0: return
             lines = res.stdout.split('\n')
-            t = Table(title="Recent Commits", box=box.ROUNDED)
-            t.add_column("Idx", style="dim"); t.add_column("Hash", style="cyan"); t.add_column("Date", style="dim"); t.add_column("Subject", style="bold green"); t.add_column("Refs", style="yellow")
+            
+            t = Table(title="Recent Commits (All Branches)", box=box.ROUNDED)
+            t.add_column("Idx", style="dim"); t.add_column("Hash", style="cyan")
+            t.add_column("Date", style="dim"); t.add_column("Subject", style="bold green")
+            t.add_column("Refs", style="yellow")
+            
             commits = []
             for i, line in enumerate(lines, 1):
                 parts = line.split('|')
                 if len(parts) >= 4:
-                    commits.append(parts[0])
-                    t.add_row(str(i), parts[0], parts[1], parts[3], parts[4] if len(parts) > 4 else "")
+                    h, date, author, subj = parts[:4]
+                    refs = parts[4] if len(parts) > 4 else ""
+                    commits.append(h)
+                    t.add_row(str(i), h, date, subj, refs)
             console.print(t)
-            idx = self.session.prompt("\nSelect commit index or hash (or 'q'): ").strip()
-            if idx.isdigit() and 1 <= int(idx) <= len(commits): self._checkout_and_sync(commits[int(idx)-1])
-            elif len(idx) >= 7: self._checkout_and_sync(idx)
-        else: self._checkout_and_sync(sub)
+            
+            idx = self.session.prompt("\nSelect commit index or enter hash (or 'q'): ").strip()
+            if idx.isdigit() and 1 <= int(idx) <= len(commits):
+                self._checkout_and_sync(commits[int(idx)-1])
+            elif len(idx) >= 7:
+                self._checkout_and_sync(idx)
+        else:
+            self._checkout_and_sync(sub)
