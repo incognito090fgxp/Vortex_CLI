@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "CLI для управление Vortex системой"
 requires-python = ">=3.9"
 dependencies = [
-    "psycopg>=3.1.0",
+    "psycopg[binary]>=3.1.0",
     "python-dotenv>=1.0.0",
     "rich>=10.11.0",
     "prompt_toolkit>=3.0.36",
@@ -16,10 +16,10 @@ dependencies = [
 ]
 
 [project.scripts]
-vortex = "vortex:main"
+vortex = "vortex.cli:main"
 
 [tool.setuptools]
-py-modules = ["vortex", "vortex_commands", "vortex_config", "vortex_completer"]
+packages = ["vortex"]
 
 [tool.setuptools.dynamic]
-version = {attr = "vortex_config.VERSION"}
+version = {attr = "vortex.config.VERSION"}

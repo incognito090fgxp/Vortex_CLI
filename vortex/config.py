@@ -1,13 +1,17 @@
 import json
 import os
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-SETTINGS_PATH = os.path.join(BASE_DIR, ".vortex_settings.json")
+# Путь к директории этого файла (внутри пакета)
+PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
+# Путь к корню проекта (на уровень выше пакета)
+PROJECT_ROOT = os.path.dirname(PACKAGE_DIR)
+
+SETTINGS_PATH = os.path.join(PROJECT_ROOT, ".vortex_settings.json")
 
 # Версия: Release.Beta.DEV.FIX
-VERSION = "0.3.1.2"
+VERSION = "0.3.2.0"
 
-# Настройки по умолчанию (приходят из гита)
+# Настройки по умолчанию
 DEFAULT_SETTINGS = {
     "auto_update": True,
     "theme": "dark",
