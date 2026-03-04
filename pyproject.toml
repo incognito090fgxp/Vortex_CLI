@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "CLI для управление Vortex системой"
 requires-python = ">=3.9"
 dependencies = [
-    "psycopg[binary]>=3.1.0",
+    "psycopg>=3.1.0",
     "python-dotenv>=1.0.0",
     "rich>=10.11.0",
     "prompt_toolkit>=3.0.36",
