@@ -10,7 +10,7 @@ from rich.table import Table
 from rich.panel import Panel
 from rich import box
 
-from ..config.manager import config, PROJECT_ROOT
+from ..config.manager import config, PROJECT_ROOT, SMALL_SCREEN_WIDTH
 
 console = Console()
 
@@ -302,15 +302,33 @@ class UpdateManager:
             res = self._git_run(["log", "--all", "-n", "100", "--pretty=format:%h|%ad|%an|%s|%d", "--date=short"])
             if not res or res.returncode != 0: return
             commits = []
+            width = console.size.width
             for line in res.stdout.split('\n'):
                 parts = line.split('|')
                 if len(parts) >= 4:
+                    subj = parts[3]
+                    refs = parts[4] if len(parts) > 4 else ""
+                    s_parts = subj.split(' ', 1)
+                    ver = s_parts[0]
+                    rest = s_parts[1] if len(s_parts) > 1 else ""
+
+                    # Оценка ширины строки: Idx(4) + Hash(7) + Date(10) + Subj(?) + Refs(?) + отступы/рамки(~10)
+                    est_total = 31 + len(subj) + len(refs)
+
+                    if width < SMALL_SCREEN_WIDTH or est_total > width:
+                        # Если экран мал ИЛИ строка не влезает — краткий вариант
+                        subj_formatted = f"[bold white]{ver}[/bold white]"
+                    else:
+                        # Полный вариант с выделенной версией
+                        subj_formatted = f"[bold white]{ver}[/bold white] {rest}" if rest else f"[bold white]{ver}[/bold white]"
+
                     commits.append({
                         "hash": parts[0],
                         "date": parts[1],
-                        "subj": parts[3],
-                        "refs": parts[4] if len(parts) > 4 else ""
+                        "subj": subj_formatted,
+                        "refs": refs
                     })
+
 
             selected = self._pager(commits, "Recent Commits", [
                 {"name": "Hash", "key": "hash", "style": "cyan"},

@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 from rich.console import Console
-from ..config.manager import VERSION
+from ..config.manager import VERSION, SMALL_SCREEN_WIDTH
 
 console = Console()
 
 def get_banner():
     width = console.size.width
-    if width < 65: 
+    if width < SMALL_SCREEN_WIDTH: 
         return f"""[bold cyan]
 ██╗  ██╗ 
 ╚██╗██╔╝ 

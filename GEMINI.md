@@ -31,3 +31,8 @@ We use a 4-digit versioning scheme: **Release.Beta.DEV.FIX** (e.g., `0.3.1.8`)
 
 ## 📂 Key Pathing (`PROJECT_ROOT`)
 - Always use `vortex.registry` as the single source of truth for all file paths.
+
+## 🎨 UI Standards & Adaptive Display
+- **Small Screens**: Use `SMALL_SCREEN_WIDTH` from `vortex.config.manager` (default: 65) to toggle between full and compact UI (e.g., in banners and tables).
+- **Commit Formatting**: In commit lists, the version (the first word of the subject) must be highlighted using `[bold white]`. 
+- **Dynamic Truncation**: If a table row's estimated width exceeds the current terminal width, automatically truncate the commit subject to the version only to maintain table integrity.
