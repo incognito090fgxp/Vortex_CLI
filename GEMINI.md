@@ -24,5 +24,10 @@ We use a 4-digit versioning scheme: **Release.Beta.DEV.FIX** (e.g., `0.3.1.8`)
 - **Cleanup**: Proactively removes `build/`, `.build/`, and `*.egg-info` to fix `egg_base` errors.
 - **Shadowing Check**: Be aware that a `vortex.py` launcher exists in the root; it is designed not to shadow the package via absolute imports.
 
+## 📟 Interactive Pager System (`_pager`)
+- **Alternate Screen Buffer**: Uses `console.screen()` to provide a "clean window" experience (like `vim`/`less`), restoring the previous terminal content upon exit.
+- **Keyboard Navigation**: Supports Arrow keys (↑/↓ for selection, ←/→ for paging), `Enter` for confirmation, and `Esc`/`q` for cancellation.
+- **Hybrid Input**: Supports both direct digit input (typing index + Enter) and visual cursor-based selection.
+
 ## 📂 Key Pathing (`PROJECT_ROOT`)
 - Always use `vortex.registry` as the single source of truth for all file paths.

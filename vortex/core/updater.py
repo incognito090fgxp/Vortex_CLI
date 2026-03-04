@@ -113,49 +113,106 @@ class UpdateManager:
                 console.print(f"[red]❌ Update failed for {target}[/red]")
                 if res: console.print(f"[dim]{res.stderr}[/dim]")
 
-    def _pager(self, items, title, columns, page_size=10):
+    def _pager(self, items, title, columns, page_size=5):
         """Interactive paginated selector."""
+        from prompt_toolkit.key_binding import KeyBindings
+        from prompt_toolkit import prompt as pk_prompt
+        from prompt_toolkit.styles import Style as PStyle
+
         current_page = 0
+        cursor_pos = 0
         total_items = len(items)
         if total_items == 0:
             console.print("[yellow]No items found.[/yellow]")
             return None
 
-        while True:
-            total_pages = (total_items + page_size - 1) // page_size
-            start = current_page * page_size
-            end = min(start + page_size, total_items)
-            page_items = items[start:end]
+        st = PStyle.from_dict({"prompt": "bold cyan"})
 
-            t = Table(title=f"{title} (Page {current_page + 1}/{total_pages})", box=box.ROUNDED)
-            t.add_column("Idx", style="dim", width=4)
-            for col in columns:
-                t.add_column(col['name'], style=col.get('style', ''))
+        with console.screen():
+            while True:
+                total_pages = (total_items + page_size - 1) // page_size
+                start = current_page * page_size
+                end = min(start + page_size, total_items)
+                page_items = items[start:end]
+                page_count = len(page_items)
+                
+                if cursor_pos >= page_count: cursor_pos = max(0, page_count - 1)
 
-            for i, item in enumerate(page_items, start + 1):
-                t.add_row(str(i), *[str(item.get(c['key'], '')) for c in columns])
+                console.clear()
+                t = Table(title=f"{title} (Page {current_page + 1}/{total_pages})", box=box.ROUNDED)
+                t.add_column("Idx", style="dim", width=4)
+                for col in columns:
+                    t.add_column(col['name'], style=col.get('style', ''))
 
-            console.print(t)
-            nav = []
-            if current_page > 0: nav.append("[bold cyan]p[/bold cyan]: prev")
-            if current_page < total_pages - 1: nav.append("[bold cyan]n[/bold cyan]: next")
-            nav.append("[bold cyan]q[/bold cyan]: quit")
-            
-            console.print(f"Navigation: {' | '.join(nav)}")
-            choice = self.session.prompt("Enter index or command: ").strip().lower()
+                for i, item in enumerate(page_items):
+                    abs_idx = start + i + 1
+                    row_style = "reverse" if i == cursor_pos else ""
+                    t.add_row(str(abs_idx), *[str(item.get(c['key'], '')) for c in columns], style=row_style)
 
-            if choice == 'q': return None
-            elif choice == 'n' and current_page < total_pages - 1: current_page += 1
-            elif choice == 'p' and current_page > 0: current_page -= 1
-            elif choice.isdigit():
-                idx = int(choice)
-                if 1 <= idx <= total_items:
-                    return items[idx-1]
-                else:
-                    console.print(f"[red]Invalid index: {idx}[/red]")
-            else:
-                if choice not in ('n', 'p'):
-                    console.print(f"[red]Unknown command: {choice}[/red]")
+                console.print(t)
+                nav = [
+                    "[bold cyan]↑/↓[/bold cyan]: move", 
+                    "[bold cyan]←/→[/bold cyan]: page", 
+                    "[bold cyan]Enter[/bold cyan]: select", 
+                    "[bold cyan]Esc/q[/bold cyan]: quit"
+                ]
+                console.print(f"Navigation: {' | '.join(nav)}")
+
+                kb = KeyBindings()
+                @kb.add('up')
+                def _(event):
+                    nonlocal cursor_pos
+                    if cursor_pos > 0: cursor_pos -= 1
+                    event.app.exit(result=("up", None))
+                
+                @kb.add('down')
+                def _(event):
+                    nonlocal cursor_pos
+                    if cursor_pos < page_count - 1: cursor_pos += 1
+                    event.app.exit(result=("down", None))
+                
+                @kb.add('left')
+                def _(event): event.app.exit(result=("prev", None))
+                
+                @kb.add('right')
+                def _(event): event.app.exit(result=("next", None))
+                
+                @kb.add('escape')
+                @kb.add('q')
+                def _(event): event.app.exit(result=("quit", None))
+
+                @kb.add('p')
+                def _(event): event.app.exit(result=("prev", None))
+
+                @kb.add('n')
+                def _(event): event.app.exit(result=("next", None))
+                
+                @kb.add('enter')
+                def _(event):
+                    text = event.app.current_buffer.text.strip()
+                    event.app.exit(result=("input", text) if text else ("select", cursor_pos))
+
+                try:
+                    res = pk_prompt("Enter index or command: ", key_bindings=kb, style=st)
+                    if not res: continue
+                    action, value = res
+                except (KeyboardInterrupt, EOFError): return None
+
+                if action == "quit": return None
+                elif action == "prev":
+                    if current_page > 0: current_page -= 1; cursor_pos = 0
+                elif action == "next":
+                    if current_page < total_pages - 1: current_page += 1; cursor_pos = 0
+                elif action == "select":
+                    return page_items[value]
+                elif action == "input":
+                    if value == 'q': return None
+                    elif value == 'p' and current_page > 0: current_page -= 1; cursor_pos = 0
+                    elif value == 'n' and current_page < total_pages - 1: current_page += 1; cursor_pos = 0
+                    elif value.isdigit():
+                        idx = int(value)
+                        if 1 <= idx <= total_items: return items[idx-1]
+                        else: console.print(f"[red]Invalid index: {idx}[/red]")
 
     def cmd_update(self, args: str = "", silent=False):
         parts = args.split()
