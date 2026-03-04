@@ -1,12 +1,12 @@
 # Vortex CLI Development Guide (Updated)
 
-## 🏗 Modular Architecture
-The project has been refactored into a structured package under the `vortex/` directory:
-- `vortex/core/`: Primary application logic (`cli.py`), the update system (`updater.py`), and authentication (`auth.py`).
-- `vortex/config/`: Configuration management (`manager.py`), versioning, and path resolution.
-- `vortex/ui/`: Interactive components like banners (`banner.py`), styles (`style.py`), and command definitions.
-- `vortex/database/`: Database connectivity and query execution (`db.py`).
-- `vortex/registry.py`: Central registry of file paths and module names for dynamic lookups.
+## 🏗 Modular Architecture & Development Mandates
+**CRITICAL**: Follow `MODULES_GUIDE.md` (root directory) strictly for any component creation or movement.
+
+- **Registry First**: Every new file or module MUST be registered in `vortex/registry.py`.
+- **Documentation**: Update `vortex/info.txt` after any architectural changes.
+- **UI Engine**: Always use `vortex.ui.engine` for interactive tables or lists. Do not write UI logic in core modules.
+- **Environment**: Protect `.env` and never commit database credentials.
 
 ## 📌 Versioning System (PEP 440)
 We use a 4-digit versioning scheme: **Release.Beta.DEV.FIX** (e.g., `0.3.1.8`)

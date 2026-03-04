@@ -17,6 +17,7 @@ from ..ui.commands import CLI_COMMANDS
 from ..ui.completer import CustomCompleter
 from ..ui.banner import get_banner
 from ..ui.style import prompt_style
+from ..ui.engine import pager
 from ..database.db import DatabaseManager
 from .updater import UpdateManager
 from .auth import AuthManager
@@ -41,24 +42,69 @@ class VortexCLI:
 
     def cmd_config(self, args: str = ""):
         parts = args.split()
-        if not parts or parts[0] == "show":
-            from rich.table import Table
-            from rich import box
-            t = Table(title="Global Settings", box=box.ROUNDED)
-            t.add_column("Setting", style="cyan")
-            t.add_column("Value", style="green")
-            for k, v in config.settings.items():
-                t.add_row(k, str(v))
-            console.print(t)
-        elif parts[0] == "auto_update":
+        if parts and parts[0] == "auto_update":
             if len(parts) > 1:
                 val = parts[1].lower() in ("on", "true", "yes", "1")
                 config.set("auto_update", val)
                 console.print(f"[green]auto_update set to {val}[/green]")
             else:
                 console.print(f"auto_update is {config.get('auto_update')}")
-        else:
-            console.print("[red]Usage: config [show | auto_update on/off][/red]")
+            return
+
+        # Описания настроек для красоты
+        META = {
+            "auto_update": "Automatically check for updates on startup",
+            "theme": "CLI color theme (dark/light)",
+            "history_limit": "Number of commands to keep in history",
+            "last_branch": "Last used git branch for updates"
+        }
+
+        while True:
+            settings_list = []
+            for k, v in config.settings.items():
+                settings_list.append({
+                    "key": k, 
+                    "val": v, 
+                    "desc": META.get(k, "No description available")
+                })
+
+            selected = pager(
+                settings_list, 
+                "Vortex Configuration", 
+                [
+                    {"name": "Setting", "key": "key", "style": "bold cyan"},
+                    {"name": "Current Value", "key": "val", "style": "yellow"},
+                    {"name": "Description", "key": "desc", "style": "dim"}
+                ],
+                description="[bold yellow]TIP:[/bold yellow] Booleans toggle on Enter, others will prompt for value."
+            )
+
+            if not selected:
+                break
+
+            key = selected['key']
+            val = selected['val']
+
+            if isinstance(val, bool):
+                new_val = not val
+                config.set(key, new_val)
+            else:
+                try:
+                    new_val_str = self.session.prompt(f"Enter new value for {key}: ", default=str(val)).strip()
+                    if not new_val_str or new_val_str == str(val):
+                        continue
+                    
+                    if isinstance(val, int): new_val = int(new_val_str)
+                    elif isinstance(val, float): new_val = float(new_val_str)
+                    else: new_val = new_val_str
+                    
+                    config.set(key, new_val)
+                except (KeyboardInterrupt, EOFError):
+                    break
+                except ValueError:
+                    console.print("[red]Invalid type![/red]")
+                    import time
+                    time.sleep(1)
 
     def run(self):
         console.print(get_banner())

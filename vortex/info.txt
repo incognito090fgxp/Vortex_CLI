@@ -16,6 +16,11 @@ FOLDER: vortex/ui/
 - commands.py: Descriptions of commands and mapping for the completer.
 - completer.py: Custom logic for nested tab-completion with meta-descriptions.
 
+FOLDER: vortex/ui/engine/
+-------------------------
+- core.py: Universal Interactive Pager (VUE). Logic for paginated tables and selection.
+- README.md: Detailed manual for VORTEX UI ENGINE API.
+
 FOLDER: vortex/config/
 ----------------------
 - manager.py: Single source of truth for VERSION, PROJECT_ROOT, and local settings.
@@ -39,3 +44,4 @@ EXTERNAL FILES (ROOT):
 - .vortex_settings.json: Local CLI preferences (git-ignored).
 - .vortex_history: Command history for prompt_toolkit (git-ignored).
 - pyproject.toml: Build configuration and dependency list.
+- MODULES_GUIDE.md: Strict workflow instructions for adding new system components.

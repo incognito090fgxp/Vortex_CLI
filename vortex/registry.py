@@ -21,6 +21,7 @@ COMMANDS_FILE = os.path.join(PACKAGE_DIR, "ui", "commands.py")
 COMPLETER_FILE = os.path.join(PACKAGE_DIR, "ui", "completer.py")
 BANNER_FILE = os.path.join(PACKAGE_DIR, "ui", "banner.py")
 STYLE_FILE = os.path.join(PACKAGE_DIR, "ui", "style.py")
+ENGINE_DIR = os.path.join(PACKAGE_DIR, "ui", "engine")
 
 # --- РЕЕСТР МОДУЛЕЙ ДЛЯ ИМПОРТА ---
 MOD_CONFIG = "vortex.config.manager"
@@ -32,3 +33,4 @@ MOD_COMMANDS = "vortex.ui.commands"
 MOD_COMPLETER = "vortex.ui.completer"
 MOD_BANNER = "vortex.ui.banner"
 MOD_STYLE = "vortex.ui.style"
+MOD_ENGINE = "vortex.ui.engine"
