@@ -1,17 +1,19 @@
+# -*- coding: utf-8 -*-
 import json
 import os
+from ..registry import SETTINGS_PATH, ENV_PATH, HISTORY_PATH, PROJECT_ROOT, PACKAGE_DIR
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-SETTINGS_PATH = os.path.join(BASE_DIR, ".vortex_settings.json")
+# Версия: Release.Beta.DEV.FIX
+VERSION = "0.3.2.0"
+# Порог для маленьких экранов
+SMALL_SCREEN_WIDTH = 65
 
-# Версия должна соответствовать PEP 440 (например, 0.2.6 или 0.2.0.post6)
-VERSION = "0.2.0.5"
-
-# Настройки по умолчанию (приходят из гита)
+# Настройки по умолчанию
 DEFAULT_SETTINGS = {
     "auto_update": True,
     "theme": "dark",
     "history_limit": 1000,
+    "last_branch": "main",
 }
 
 class VortexConfig:
@@ -20,7 +22,6 @@ class VortexConfig:
         self.load()
 
     def load(self):
-        """Загружает пользовательские настройки поверх дефолтных"""
         if os.path.exists(SETTINGS_PATH):
             try:
                 with open(SETTINGS_PATH, "r", encoding="utf-8") as f:
@@ -30,7 +31,6 @@ class VortexConfig:
                 pass
 
     def save(self):
-        """Сохраняет только измененные настройки"""
         try:
             with open(SETTINGS_PATH, "w", encoding="utf-8") as f:
                 json.dump(self.settings, f, indent=4)

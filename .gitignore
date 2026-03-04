@@ -12,11 +12,15 @@ __pycache__/
 *$py.class
 .pytest_cache/
 
+# Сборка
+build/
+dist/
+*.egg-info/
+.build/
+
 # IDE
 .vscode/
 .idea/
-.build/*
-!.build/.gitkeep
 
 # settings & logs
 .vortex_settings.json

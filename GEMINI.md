@@ -1,35 +1,38 @@
-# Vortex CLI Development Guide
+# Vortex CLI Development Guide (Updated)
+
+## 🏗 Modular Architecture & Development Mandates
+**CRITICAL**: Follow `MODULES_GUIDE.md` (root directory) strictly for any component creation or movement.
+
+- **Registry First**: Every new file or module MUST be registered in `vortex/registry.py`.
+- **Documentation**: Update `vortex/info.txt` after any architectural changes.
+- **UI Engine**: Always use `vortex.ui.engine` for interactive tables or lists. Do not write UI logic in core modules.
+- **Environment**: Protect `.env` and never commit database credentials.
 
 ## 📌 Versioning System (PEP 440)
-We use a 4-digit versioning scheme: **Release.Beta.DEV.FIX** (e.g., `0.2.0.5`)
-- **Release**: Major versions (infrastructure change).
-- **Beta**: Stable feature sets within a release.
-- **DEV**: Development iterations / experimental features.
-- **FIX**: Hotfixes and minor patches.
+We use a 4-digit versioning scheme: **Release.Beta.DEV.FIX** (e.g., `0.3.1.8`)
 
-### 🏷 Tagging Strategy
-- **Floating Stable Tags**: Use tags like `v0`, `v1`, `v10` to point to the latest **proven stable** commit.
-- **Format**: Strictly `v` followed by digits (`^v\d+$`). No dots, letters, or other symbols allowed for stable aliases.
-- **Sorting**: CLI uses numeric sorting for these tags (e.g., `v10` is recognized as newer than `v2`).
-- Users are encouraged to stay on these tags for production use.
-- Developer moves these tags manually: `git tag -f v0 <hash> && git push origin v0 --force`.
+## 🌍 Cross-Platform Compatibility (MANDATORY)
+**CRITICAL**: When modifying the codebase, you MUST ensure compatibility across Windows, Linux, macOS, and Termux (Android).
 
-## 🔄 Update & Settings Mechanism
-- **Logic**: 
-  - **Main Branch**: Performs a dual check for the latest commit (`origin/main`) and the latest stable numeric tag. 
-    - If an update is available, it prompts: *"Would you like to update to the stable version? If so, select 's' (stable)."*
-    - User choices: `y` (update to latest commit), `s` (update to latest stable tag), `n` (skip).
-    - If no stable tag exists, it notifies: *"Note: No stable version found."* and only offers `y/n`.
-  - **Other Branches/Detached HEAD**: Calculates the "commit distance" between the local HEAD and the upstream branch. This feature is disabled outside of `main` to prevent accidental stable-tracking on development branches.
-- **Distance-based**: String version comparison is secondary; if the remote branch has more commits, an update is available. This ensures correct "left-to-right" progression regardless of file content.
-- **Dependency Sync**: 
-  - **Windows**: Installs dependencies by list from `pyproject.toml` to avoid locking `vortex.exe`.
-  - **Unix**: Performs `pip install .`.
-  - **Repair**: If the environment is broken (ModuleNotFoundError), use `pip install -e .`.
+1.  **Lazy Loading**: Never import heavy dependencies (like `dotenv`, `rich`, `psycopg`) at the top level of `vortex/__init__.py` or `vortex/config/__init__.py`. This breaks the `pip` installation process because dependencies aren't installed yet when `setuptools` tries to read the version.
+2.  **Binary Dependencies**: Avoid `[binary]` suffixes for libraries in `pyproject.toml` (e.g., use `psycopg` instead of `psycopg[binary]`) to ensure compatibility with Termux/ARM environments where wheels might not be available.
+3.  **Path Handling**: Always use `os.path.join` and reference paths via `vortex.registry` to avoid issues with different slash directions or relative path resolution.
+4.  **Entry Points**: Keep `vortex/__init__.py` as a "Lazy Wrapper" to support both legacy installations and clean new builds.
 
-## 📂 Project Structure
-- `vortex.py`: Core CLI logic and command handlers.
-- `vortex_config.py`: Single source of truth for VERSION and local settings.
-- `vortex_commands.py`: Command definitions and help text.
-- `vortex_completer.py`: Tab-completion logic.
-- `pyproject.toml`: Package metadata and dependencies.
+## 🔄 Update & Sync Mechanism (Termux Optimized)
+- **Git Strategy**: Uses `git reset --hard` to bypass "divergent branches" errors.
+- **Cleanup**: Proactively removes `build/`, `.build/`, and `*.egg-info` to fix `egg_base` errors.
+- **Shadowing Check**: Be aware that a `vortex.py` launcher exists in the root; it is designed not to shadow the package via absolute imports.
+
+## 📟 Interactive Pager System (`_pager`)
+- **Alternate Screen Buffer**: Uses `console.screen()` to provide a "clean window" experience (like `vim`/`less`), restoring the previous terminal content upon exit.
+- **Keyboard Navigation**: Supports Arrow keys (↑/↓ for selection, ←/→ for paging), `Enter` for confirmation, and `Esc`/`q` for cancellation.
+- **Hybrid Input**: Supports both direct digit input (typing index + Enter) and visual cursor-based selection.
+
+## 📂 Key Pathing (`PROJECT_ROOT`)
+- Always use `vortex.registry` as the single source of truth for all file paths.
+
+## 🎨 UI Standards & Adaptive Display
+- **Small Screens**: Use `SMALL_SCREEN_WIDTH` from `vortex.config.manager` (default: 65) to toggle between full and compact UI (e.g., in banners and tables).
+- **Commit Formatting**: In commit lists, the version (the first word of the subject) must be highlighted using `[bold white]`. 
+- **Dynamic Truncation**: If a table row's estimated width exceeds the current terminal width, automatically truncate the commit subject to the version only to maintain table integrity.

@@ -11,14 +11,15 @@ dependencies = [
     "psycopg>=3.1.0",
     "python-dotenv>=1.0.0",
     "rich>=10.11.0",
-    "prompt_toolkit>=3.0.36"
+    "prompt_toolkit>=3.0.36",
+    "tomli>=2.0.1; python_version < '3.11'"
 ]
 
 [project.scripts]
-vortex = "vortex:main"
+vortex = "vortex.core.cli:main"
 
 [tool.setuptools]
-py-modules = ["vortex", "vortex_commands", "vortex_config", "vortex_completer"]
+packages = ["vortex", "vortex.config", "vortex.core", "vortex.database", "vortex.ui"]
 
 [tool.setuptools.dynamic]
-version = {attr = "vortex_config.VERSION"}
+version = {attr = "vortex.config.manager.VERSION"}

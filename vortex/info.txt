@@ -1,0 +1,47 @@
+VORTEX CLI ARCHITECTURE GUIDE
+==============================
+
+This file describes the system modules and their responsibilities.
+
+FOLDER: vortex/core/
+--------------------
+- cli.py: The main REPL engine. Orchestrates all modules and runs the input loop.
+- updater.py: Git-based update system. Optimized for Termux (uses reset --hard).
+- auth.py: Manages .env configuration and database credentials setup.
+
+FOLDER: vortex/ui/
+------------------
+- banner.py: Logic for generating and displaying the CLI header (ASCII art).
+- style.py: prompt_toolkit and rich styling definitions.
+- commands.py: Descriptions of commands and mapping for the completer.
+- completer.py: Custom logic for nested tab-completion with meta-descriptions.
+
+FOLDER: vortex/ui/engine/
+-------------------------
+- core.py: Universal Interactive Pager (VUE). Logic for paginated tables and selection.
+- README.md: Detailed manual for VORTEX UI ENGINE API.
+
+FOLDER: vortex/config/
+----------------------
+- manager.py: Single source of truth for VERSION, PROJECT_ROOT, and local settings.
+- __init__.py: Exposes version and config for setuptools and other modules.
+
+FOLDER: vortex/database/
+------------------------
+- db.py: PostgreSQL connectivity (psycopg) and standard query/table command logic.
+
+FILE: vortex/registry.py
+------------------------
+- A centralized list of absolute file paths and module names for dynamic lookups.
+
+FILE: vortex/__init__.py
+------------------------
+- Package entry point. Exports 'main' to point to 'vortex.core.cli.main'.
+
+EXTERNAL FILES (ROOT):
+----------------------
+- .env: Database credentials (git-ignored).
+- .vortex_settings.json: Local CLI preferences (git-ignored).
+- .vortex_history: Command history for prompt_toolkit (git-ignored).
+- pyproject.toml: Build configuration and dependency list.
+- MODULES_GUIDE.md: Strict workflow instructions for adding new system components.
