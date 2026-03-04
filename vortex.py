@@ -5,6 +5,8 @@ import copy
 import psycopg
 import re
 import subprocess
+import shutil
+import glob
 from dotenv import load_dotenv, dotenv_values
 from typing import Optional, Iterable, List
 
@@ -225,7 +227,11 @@ class VortexCLI:
         if not os.path.exists(toml_path):
             return []
         try:
-            import tomllib
+            try:
+                import tomllib
+            except ImportError:
+                import tomli as tomllib
+            
             with open(toml_path, "rb") as f:
                 data = tomllib.load(f)
             return data.get("project", {}).get("dependencies", [])
@@ -272,17 +278,31 @@ class VortexCLI:
 
     def _checkout_and_sync(self, target: str, pull: bool = False):
         """Helper to checkout a target, pull if needed, sync deps and exit."""
-        console.print(f"[yellow]Checking out {target}...[/yellow]")
-        res = self._git_run(["checkout", target], capture=False)
+        console.print(f"[yellow]Forcing checkout to {target}...[/yellow]")
+        
+        # Use --force to overwrite local changes
+        res = self._git_run(["checkout", "-f", target], capture=True)
         if res and res.returncode == 0:
             if pull:
                 console.print(f"[yellow]Pulling latest changes for {target}...[/yellow]")
                 self._git_run(["pull", "origin", target], capture=False)
             
+            # CLEANUP BUILD CACHE
+            console.print("[yellow]Cleaning build artifacts...[/yellow]")
+            for p in ["build", ".build"]:
+                path = os.path.join(PROJECT_ROOT, p)
+                if os.path.exists(path): shutil.rmtree(path, ignore_errors=True)
+            
+            for egg in glob.glob(os.path.join(PROJECT_ROOT, "*.egg-info")):
+                shutil.rmtree(egg, ignore_errors=True)
+
             # Forced sync after checkout to update logic in venv
             self._sync_deps(force=True)
             console.print("[bold green]✅ Updated successfully![/bold green]")
             sys.exit(0)
+        else:
+            console.print(f"[red]❌ Checkout failed for {target}[/red]")
+            if res: console.print(f"[dim]{res.stderr}[/dim]")
 
     def cmd_update(self, args: str = "", silent=False):
         import subprocess
