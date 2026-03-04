@@ -3,7 +3,7 @@ import json
 import os
 
 # Версия: Release.Beta.DEV.FIX
-VERSION = "0.3.1.5"
+VERSION = "0.3.1.6"
 
 # Пути
 # PACKAGE_DIR: D:\Project\SolvexIT\VPN\CLI\Vortex_CLI\vortex

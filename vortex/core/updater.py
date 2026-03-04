@@ -48,6 +48,15 @@ class UpdateManager:
         except:
             return []
 
+    def _check_shadowing(self):
+        """Check for vortex.py in the root which might shadow the package."""
+        shadow = os.path.join(PROJECT_ROOT, "vortex.py")
+        if os.path.exists(shadow):
+            console.print(f"\n[bold red]CRITICAL:[/bold red] Found [cyan]vortex.py[/cyan] in project root.")
+            console.print("[yellow]This file prevents the CLI from running correctly. Please rename or delete it.[/yellow]")
+            return True
+        return False
+
     def _sync_deps(self, force=False):
         console.print("[yellow]Checking & Syncing dependencies...[/yellow]")
         required = self._get_required_deps()
@@ -64,9 +73,15 @@ class UpdateManager:
             return
 
         try:
+            # CLEANUP BEFORE INSTALL TO AVOID EGG_INFO ERRORS
+            for p in ["build", ".build", "vortex_cli.egg-info"]:
+                path = os.path.join(PROJECT_ROOT, p)
+                if os.path.exists(path): shutil.rmtree(path, ignore_errors=True)
+
             if os.name == 'nt':
                 cmd = [sys.executable, "-m", "pip", "install"] + required + ["--quiet"]
             else:
+                # Use --no-deps if needed, but normally we want dependencies
                 cmd = [sys.executable, "-m", "pip", "install", "-e", PROJECT_ROOT, "--upgrade", "--quiet"]
 
             res = subprocess.run(cmd, cwd=PROJECT_ROOT, capture_output=True, text=True)
@@ -75,35 +90,55 @@ class UpdateManager:
             else:
                 console.print(f"[red]❌ Dependency sync failed.[/red]")
                 console.print(f"[dim]{res.stderr}[/dim]")
+                # If editable install fails, fallback to normal install of dependencies
+                if not os.name == 'nt':
+                    console.print("[yellow]Retrying with simple dependency install...[/yellow]")
+                    subprocess.run([sys.executable, "-m", "pip", "install"] + required + ["--quiet"], cwd=PROJECT_ROOT)
         except Exception as e:
             console.print(f"[red]Error syncing deps: {e}[/red]")
 
     def _checkout_and_sync(self, target: str, pull: bool = False):
         console.print(f"[yellow]Forcing checkout to {target}...[/yellow]")
-        res = self._git_run(["checkout", "-f", target], capture=True)
+        
+        # Ensure we are not tracking a local branch that diverged
+        if pull:
+            self._git_run(["fetch", "origin", target])
+            target_ref = f"origin/{target}"
+        else:
+            target_ref = target
+
+        # FORCE RESET TO REMOTE state instead of pull to avoid reconciliation issues
+        res = self._git_run(["reset", "--hard", target_ref], capture=True)
+        
         if res and res.returncode == 0:
-            if pull:
-                console.print(f"[yellow]Pulling latest changes for {target}...[/yellow]")
-                self._git_run(["pull", "origin", target], capture=False)
-            
             # CLEANUP BUILD CACHE
             console.print("[yellow]Cleaning build artifacts...[/yellow]")
-            for p in ["build", ".build"]:
+            for p in ["build", ".build", "dist", "vortex_cli.egg-info"]:
                 path = os.path.join(PROJECT_ROOT, p)
                 if os.path.exists(path): shutil.rmtree(path, ignore_errors=True)
-            for egg in glob.glob(os.path.join(PROJECT_ROOT, "*.egg-info")):
-                shutil.rmtree(egg, ignore_errors=True)
-
+            
             self._sync_deps(force=True)
+            self._check_shadowing()
             console.print("[bold green]✅ Updated successfully![/bold green]")
             sys.exit(0)
         else:
-            console.print(f"[red]❌ Checkout failed for {target}[/red]")
-            if res: console.print(f"[dim]{res.stderr}[/dim]")
+            # Fallback to checkout if reset failed (might be a tag)
+            res = self._git_run(["checkout", "-f", target], capture=True)
+            if res and res.returncode == 0:
+                self._sync_deps(force=True)
+                self._check_shadowing()
+                console.print("[bold green]✅ Updated successfully (via checkout)![/bold green]")
+                sys.exit(0)
+            else:
+                console.print(f"[red]❌ Update failed for {target}[/red]")
+                if res: console.print(f"[dim]{res.stderr}[/dim]")
 
     def cmd_update(self, args: str = "", silent=False):
         parts = args.split()
         sub = parts[0].lower() if parts else "check"
+        
+        if self._check_shadowing() and not silent:
+            console.print("[yellow]Please fix the shadowing issue before updating.[/yellow]")
 
         if sub == "check":
             if not silent: console.print("[yellow]Checking for updates...[/yellow]")
@@ -114,25 +149,26 @@ class UpdateManager:
             branch = res.stdout.strip()
             if branch != "HEAD": config.set("last_branch", branch)
 
-            if branch == "main":
+            if branch == "main" or branch == "FIX":
                 res_tags = self._git_run(["tag", "-l"])
                 stable_tags = [t.strip() for t in res_tags.stdout.split('\n') if re.match(r"^v\d+$", t.strip())]
                 stable_tags.sort(key=lambda x: int(x[1:]), reverse=True)
                 latest_stable = stable_tags[0] if stable_tags else None
 
-                res_latest = self._git_run(["rev-parse", "origin/main"])
+                upstream = f"origin/{branch}"
+                res_latest = self._git_run(["rev-parse", upstream])
                 latest_commit = res_latest.stdout.strip() if res_latest and res_latest.returncode == 0 else None
                 current_commit = self._git_run(["rev-parse", "HEAD"]).stdout.strip()
 
                 if latest_commit and current_commit != latest_commit:
-                    console.print(f"[bold cyan]🚀 Update available! You are behind origin/main.[/bold cyan]")
+                    console.print(f"[bold cyan]🚀 Update available! You are behind {upstream}.[/bold cyan]")
                     if latest_stable:
                         console.print(f"Latest: [green]{latest_commit[:7]}[/green] | Stable: [green]{latest_stable}[/green]")
                         choice = self.session.prompt("Update now? (y/n/s): ").lower().strip()
                     else:
                         choice = self.session.prompt("Update now? (y/n): ").lower().strip()
                     
-                    if choice == 'y': self._checkout_and_sync("main", pull=True)
+                    if choice == 'y': self._checkout_and_sync(branch, pull=True)
                     elif choice == 's' and latest_stable: self._checkout_and_sync(latest_stable)
                 elif not silent: console.print("[green]You are on the latest version.[/green]")
                 return
