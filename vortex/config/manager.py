@@ -1,17 +1,10 @@
 # -*- coding: utf-8 -*-
 import json
 import os
+from ..registry import SETTINGS_PATH, ENV_PATH, HISTORY_PATH, PROJECT_ROOT, PACKAGE_DIR
 
 # Версия: Release.Beta.DEV.FIX
-VERSION = "0.3.1.7"
-
-# Пути
-# PACKAGE_DIR: D:\Project\SolvexIT\VPN\CLI\Vortex_CLI\vortex
-PACKAGE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-# PROJECT_ROOT: D:\Project\SolvexIT\VPN\CLI\Vortex_CLI
-PROJECT_ROOT = os.path.dirname(PACKAGE_DIR)
-
-SETTINGS_PATH = os.path.join(PROJECT_ROOT, ".vortex_settings.json")
+VERSION = "0.3.1.8"
 
 # Настройки по умолчанию
 DEFAULT_SETTINGS = {

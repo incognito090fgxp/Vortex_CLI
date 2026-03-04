@@ -48,20 +48,11 @@ class UpdateManager:
         except:
             return []
 
-    def _check_shadowing(self):
-        """Check for vortex.py in the root which might shadow the package."""
-        shadow = os.path.join(PROJECT_ROOT, "vortex.py")
-        if os.path.exists(shadow):
-            console.print(f"\n[bold red]CRITICAL:[/bold red] Found [cyan]vortex.py[/cyan] in project root.")
-            console.print("[yellow]This file prevents the CLI from running correctly. Please rename or delete it.[/yellow]")
-            return True
-        return False
-
     def _sync_deps(self, force=False):
         console.print("[yellow]Checking & Syncing dependencies...[/yellow]")
         required = self._get_required_deps()
         installed = self._get_installed_deps()
-        
+
         missing = []
         for dep in required:
             name = re.split('[<>=!]', dep)[0].strip().lower()
@@ -99,7 +90,7 @@ class UpdateManager:
 
     def _checkout_and_sync(self, target: str, pull: bool = False):
         console.print(f"[yellow]Forcing checkout to {target}...[/yellow]")
-        
+
         # Ensure we are not tracking a local branch that diverged
         if pull:
             self._git_run(["fetch", "origin", target])
@@ -109,16 +100,15 @@ class UpdateManager:
 
         # FORCE RESET TO REMOTE state instead of pull to avoid reconciliation issues
         res = self._git_run(["reset", "--hard", target_ref], capture=True)
-        
+
         if res and res.returncode == 0:
             # CLEANUP BUILD CACHE
             console.print("[yellow]Cleaning build artifacts...[/yellow]")
             for p in ["build", ".build", "dist", "vortex_cli.egg-info"]:
                 path = os.path.join(PROJECT_ROOT, p)
                 if os.path.exists(path): shutil.rmtree(path, ignore_errors=True)
-            
+
             self._sync_deps(force=True)
-            self._check_shadowing()
             console.print("[bold green]✅ Updated successfully![/bold green]")
             sys.exit(0)
         else:
@@ -126,7 +116,6 @@ class UpdateManager:
             res = self._git_run(["checkout", "-f", target], capture=True)
             if res and res.returncode == 0:
                 self._sync_deps(force=True)
-                self._check_shadowing()
                 console.print("[bold green]✅ Updated successfully (via checkout)![/bold green]")
                 sys.exit(0)
             else:
@@ -136,14 +125,11 @@ class UpdateManager:
     def cmd_update(self, args: str = "", silent=False):
         parts = args.split()
         sub = parts[0].lower() if parts else "check"
-        
-        if self._check_shadowing() and not silent:
-            console.print("[yellow]Please fix the shadowing issue before updating.[/yellow]")
 
         if sub == "check":
             if not silent: console.print("[yellow]Checking for updates...[/yellow]")
             self._git_run(["fetch", "--all", "--tags", "--quiet"])
-            
+
             res = self._git_run(["rev-parse", "--abbrev-ref", "HEAD"])
             if not res or res.returncode != 0: return
             branch = res.stdout.strip()
@@ -167,7 +153,7 @@ class UpdateManager:
                         choice = self.session.prompt("Update now? (y/n/s): ").lower().strip()
                     else:
                         choice = self.session.prompt("Update now? (y/n): ").lower().strip()
-                    
+
                     if choice == 'y': self._checkout_and_sync(branch, pull=True)
                     elif choice == 's' and latest_stable: self._checkout_and_sync(latest_stable)
                 elif not silent: console.print("[green]You are on the latest version.[/green]")
@@ -199,12 +185,12 @@ class UpdateManager:
             res_b = self._git_run(["branch", "-r"])
             if not res_b or res_b.returncode != 0: return
             branches = [b.strip() for b in res_b.stdout.split('\n') if b.strip() and '->' not in b]
-            
+
             t = Table(title="Remote Branches", box=box.ROUNDED)
             t.add_column("Idx", style="dim"); t.add_column("Branch Name", style="bold green")
             for i, b in enumerate(branches, 1): t.add_row(str(i), b)
             console.print(t)
-            
+
             idx = self.session.prompt("\nSelect branch index (or 'q' to quit): ").strip()
             if idx.isdigit() and 1 <= int(idx) <= len(branches):
                 full = branches[int(idx)-1]
@@ -222,7 +208,7 @@ class UpdateManager:
             res_t = self._git_run(["tag", "-l", "--sort=-v:refname"])
             if not res_t or res_t.returncode != 0: return
             tags = [t.strip() for t in res_t.stdout.split('\n') if t.strip()]
-            
+
             if not tags:
                 console.print("[yellow]No tags found.[/yellow]")
                 return
@@ -231,7 +217,7 @@ class UpdateManager:
             t.add_column("Idx", style="dim"); t.add_column("Tag Name", style="bold green")
             for i, tag in enumerate(tags[:20], 1): t.add_row(str(i), tag)
             console.print(t)
-            
+
             idx = self.session.prompt("\nSelect tag index (or 'q' to quit): ").strip()
             if idx.isdigit() and 1 <= int(idx) <= len(tags):
                 self._checkout_and_sync(tags[int(idx)-1])
@@ -241,12 +227,12 @@ class UpdateManager:
             res = self._git_run(["log", "--all", "-n", "30", "--pretty=format:%h|%ad|%an|%s|%d", "--date=short"])
             if not res or res.returncode != 0: return
             lines = res.stdout.split('\n')
-            
+
             t = Table(title="Recent Commits (All Branches)", box=box.ROUNDED)
             t.add_column("Idx", style="dim"); t.add_column("Hash", style="cyan")
             t.add_column("Date", style="dim"); t.add_column("Subject", style="bold green")
             t.add_column("Refs", style="yellow")
-            
+
             commits = []
             for i, line in enumerate(lines, 1):
                 parts = line.split('|')
@@ -256,7 +242,7 @@ class UpdateManager:
                     commits.append(h)
                     t.add_row(str(i), h, date, subj, refs)
             console.print(t)
-            
+
             idx = self.session.prompt("\nSelect commit index or enter hash (or 'q'): ").strip()
             if idx.isdigit() and 1 <= int(idx) <= len(commits):
                 self._checkout_and_sync(commits[int(idx)-1])
@@ -264,3 +250,4 @@ class UpdateManager:
                 self._checkout_and_sync(idx)
         else:
             self._checkout_and_sync(sub)
+
