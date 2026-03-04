@@ -11,7 +11,8 @@ from prompt_toolkit.history import FileHistory
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.shortcuts import CompleteStyle
 
-from ..config.manager import config, ENV_PATH, HISTORY_PATH
+from ..config.manager import config, VERSION
+from ..registry import ENV_PATH, HISTORY_PATH
 from ..ui.commands import CLI_COMMANDS
 from ..ui.completer import CustomCompleter
 from ..ui.banner import get_banner

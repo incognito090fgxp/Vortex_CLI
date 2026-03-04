@@ -2,35 +2,27 @@
 
 ## 🏗 Modular Architecture
 The project has been refactored into a structured package under the `vortex/` directory:
-- `vortex/core/`: Primary application logic (`cli.py`) and the update system (`updater.py`).
+- `vortex/core/`: Primary application logic (`cli.py`), the update system (`updater.py`), and authentication (`auth.py`).
 - `vortex/config/`: Configuration management (`manager.py`), versioning, and path resolution.
-- `vortex/ui/`: Interactive components like command definitions (`commands.py`) and tab-completion (`completer.py`).
+- `vortex/ui/`: Interactive components like banners (`banner.py`), styles (`style.py`), and command definitions.
 - `vortex/database/`: Database connectivity and query execution (`db.py`).
 - `vortex/registry.py`: Central registry of file paths and module names for dynamic lookups.
 
 ## 📌 Versioning System (PEP 440)
-We use a 4-digit versioning scheme: **Release.Beta.DEV.FIX** (e.g., `0.3.1.5`)
-- **Release**: Major version / infrastructure change.
-- **Beta**: Stable feature sets.
-- **DEV**: Development iterations.
-- **FIX**: Hotfixes and minor patches.
+We use a 4-digit versioning scheme: **Release.Beta.DEV.FIX** (e.g., `0.3.1.8`)
+
+## 🌍 Cross-Platform Compatibility (MANDATORY)
+**CRITICAL**: When modifying the codebase, you MUST ensure compatibility across Windows, Linux, macOS, and Termux (Android).
+
+1.  **Lazy Loading**: Never import heavy dependencies (like `dotenv`, `rich`, `psycopg`) at the top level of `vortex/__init__.py` or `vortex/config/__init__.py`. This breaks the `pip` installation process because dependencies aren't installed yet when `setuptools` tries to read the version.
+2.  **Binary Dependencies**: Avoid `[binary]` suffixes for libraries in `pyproject.toml` (e.g., use `psycopg` instead of `psycopg[binary]`) to ensure compatibility with Termux/ARM environments where wheels might not be available.
+3.  **Path Handling**: Always use `os.path.join` and reference paths via `vortex.registry` to avoid issues with different slash directions or relative path resolution.
+4.  **Entry Points**: Keep `vortex/__init__.py` as a "Lazy Wrapper" to support both legacy installations and clean new builds.
 
 ## 🔄 Update & Sync Mechanism (Termux Optimized)
-The update system in `vortex/core/updater.py` is designed for high reliability:
-- **Git Strategy**: Uses `git reset --hard` to synchronize with remote branches/tags. This bypasses common "divergent branches" errors in Termux and Git environments where history might have been rewritten.
-- **Cleanup**: Automatically removes `build/`, `.build/`, `dist/`, and `*.egg-info` directories before and after updates to prevent installation errors (like the `egg_base` error).
-- **Dependency Sync**: 
-  - **Windows**: Installs dependencies directly to avoid locking the `.exe`.
-  - **Unix/Termux**: Performs `pip install -e .` (editable mode) to link the repository to the environment.
-  - **Fallback**: If editable installation fails, it attempts a simple dependency-only installation.
-- **Shadowing Check**: Automatically detects if a `vortex.py` file exists in the project root, which would shadow the actual package and cause `ImportError`.
+- **Git Strategy**: Uses `git reset --hard` to bypass "divergent branches" errors.
+- **Cleanup**: Proactively removes `build/`, `.build/`, and `*.egg-info` to fix `egg_base` errors.
+- **Shadowing Check**: Be aware that a `vortex.py` launcher exists in the root; it is designed not to shadow the package via absolute imports.
 
 ## 📂 Key Pathing (`PROJECT_ROOT`)
-- `PROJECT_ROOT` is dynamically determined in `vortex/config/manager.py`.
-- It must point to the directory containing `.env`, `.vortex_settings.json`, and `pyproject.toml`.
-- **Warning**: Do NOT place a `vortex.py` file in the project root; it will break the package imports.
-
-## 🏷 Tagging Strategy
-- **Stable Tags**: Strictly `v` followed by digits (e.g., `v1`, `v10`). 
-- CLI uses numeric sorting to identify the "Latest Stable" version.
-- Move tags manually: `git tag -f v1 <hash> && git push origin v1 --force`.
+- Always use `vortex.registry` as the single source of truth for all file paths.

@@ -16,10 +16,10 @@ dependencies = [
 ]
 
 [project.scripts]
-vortex = "vortex:main"
+vortex = "vortex.core.cli:main"
 
 [tool.setuptools]
-packages = ["vortex"]
+packages = ["vortex", "vortex.config", "vortex.core", "vortex.database", "vortex.ui"]
 
 [tool.setuptools.dynamic]
-version = {attr = "vortex.config.VERSION"}
+version = {attr = "vortex.config.manager.VERSION"}

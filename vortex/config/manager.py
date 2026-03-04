@@ -4,7 +4,7 @@ import os
 from ..registry import SETTINGS_PATH, ENV_PATH, HISTORY_PATH, PROJECT_ROOT, PACKAGE_DIR
 
 # Версия: Release.Beta.DEV.FIX
-VERSION = "0.3.1.8"
+VERSION = "0.3.1.9"
 
 # Настройки по умолчанию
 DEFAULT_SETTINGS = {
