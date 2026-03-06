@@ -22,6 +22,8 @@ COMPLETER_FILE = os.path.join(PACKAGE_DIR, "ui", "completer.py")
 BANNER_FILE = os.path.join(PACKAGE_DIR, "ui", "banner.py")
 STYLE_FILE = os.path.join(PACKAGE_DIR, "ui", "style.py")
 ENGINE_DIR = os.path.join(PACKAGE_DIR, "ui", "engine")
+ENGINE_README = os.path.join(ENGINE_DIR, "README.md")
+GEMINI_FILE = os.path.join(PROJECT_ROOT, "GEMINI.md")
 
 # --- РЕЕСТР МОДУЛЕЙ ДЛЯ ИМПОРТА ---
 MOD_CONFIG = "vortex.config.manager"

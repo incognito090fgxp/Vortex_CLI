@@ -6,7 +6,7 @@ This file describes the system modules and their responsibilities.
 FOLDER: vortex/core/
 --------------------
 - cli.py: The main REPL engine. Orchestrates all modules and runs the input loop.
-- updater.py: Dynamic Git-based update system. Supports auto-detection of branch upstream and stable tag (v*) switching for main branch.
+- updater.py: Dynamic Git-based update system. Auto-detects branch upstream and offers stable tag switching for 'main' branch users.
 - auth.py: Manages .env configuration and database credentials setup.
 
 FOLDER: vortex/ui/
@@ -45,3 +45,4 @@ EXTERNAL FILES (ROOT):
 - .vortex_history: Command history for prompt_toolkit (git-ignored).
 - pyproject.toml: Build configuration and dependency list.
 - MODULES_GUIDE.md: Strict workflow instructions for adding new system components.
+- GEMINI.md: Mandatory engineering guide and system file map.
