@@ -41,9 +41,11 @@ We use a 4-digit versioning scheme: **Release.Beta.DEV.FIX** (e.g., `0.3.1.8`)
 - **Keyboard Navigation**: Supports Arrow keys and fast numeric input.
 - **Adaptive Rendering**: Supports dynamic content truncation based on terminal width.
 
-## 🔄 Git-based Update Protocol (ls-remote)
-- **Remote Ground Truth**: The system MUST query GitHub directly via `git ls-remote` for the most accurate branch and tag hashes, bypassing local cache inconsistencies.
-- **Direct Hash Verification**: Update checks are performed by comparing the local `HEAD` hash against the remote branch hash. 
-- **Branch Mismatch Detection**: If the local code hash matches a specific remote branch (e.g., `FIX`) while the local branch is named differently (e.g., `DEV`), the system MUST offer to switch the branch name to match the code.
-- **Pinned State Handling**: When updating to a tag or a specific commit, the system MUST create a local "pinned" branch (e.g., `v0.1.2` or `vtx/a1b2c3d`) to avoid detached HEAD states and ensure clear version reporting.
-- **Ahead/Behind Logic**: If hashes differ, `git rev-list --count` is used to determine if the remote is ahead (update available) or the local is ahead (no update offered).
+## 🔄 Git-based Update Protocol (GitHub Ground Truth)
+- **Remote Ground Truth**: The system MUST query GitHub directly via `git ls-remote` for real-time branch and tag hashes, bypassing local cache inconsistencies.
+- **Detached HEAD & State**: When switching to a specific tag or commit, the system MUST use `checkout --detach`. Local "pinned" branches (e.g., `vtx/`) are strictly forbidden to keep the environment clean.
+- **Ancestry Tracking (The "Ping")**: In a detached state, the system MUST identify the "tracking track" (e.g., `origin/FIX` or `origin/main`) by querying which remote branches contain the current `HEAD` hash (`git branch -r --contains`). 
+- **Branch Mismatch Detection**: If the local code hash matches a specific remote branch head (e.g., `FIX`) while on a different local branch (e.g., `DEV`), the system MUST offer to switch to the correct branch.
+- **Ahead/Behind Logic**: If hashes differ, `git rev-list --count` is used to determine if the remote is ahead (update available).
+- **Pruned History**: Commands showing remote history (`update commit`) MUST perform a `fetch --prune` first to ensure deleted remote commits are removed from the local view.
+- **Silent Protocol**: Automatic startup checks MUST remain silent if `HEAD` is detached, while manual `update` calls always perform a full check.

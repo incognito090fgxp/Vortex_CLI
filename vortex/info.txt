@@ -6,7 +6,7 @@ This file describes the system modules and their responsibilities.
 FOLDER: vortex/core/
 --------------------
 - cli.py: The main REPL engine. Orchestrates all modules and runs the input loop.
-- updater.py: Dynamic Git-based update system. Uses 'ls-remote' for real-time remote state analysis. Features ahead/behind detection, automatic branch mismatch correction, and pinned state (vtx/) for viewing specific commits/tags without nag-updates.
+- updater.py: Dynamic Git-based update system. Uses 'ls-remote' for real-time remote state analysis and 'checkout --detach' for clean tag/commit switching. Features ancestry tracking to identify tracking tracks (main/FIX) in detached states and 'fetch --prune' for accurate remote history.
 - auth.py: Manages .env configuration and database credentials setup.
 
 FOLDER: vortex/ui/

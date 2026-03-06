@@ -77,15 +77,15 @@ class UpdateManager:
         console.print(f"[yellow]Forcing checkout to {target}...[/yellow]")
 
         if pull:
+            # Обновление ветки: остаемся на ветке
             self._git_run(["fetch", "origin", target, "--tags", "--force"])
             self._git_run(["checkout", "-B", target, f"origin/{target}"])
             ref = f"origin/{target}"
         else:
+            # Прыжок на коммит или тег: уходим в Detached HEAD (без лишних веток)
             if target.startswith('v'):
                 self._git_run(["fetch", "origin", f"refs/tags/{target}:refs/tags/{target}", "--force"])
-                self._git_run(["checkout", "-B", target, target])
-            else:
-                self._git_run(["checkout", "-B", f"vtx/{target[:7]}", target])
+            self._git_run(["checkout", "--detach", target])
             ref = target
 
         res = self._git_run(["reset", "--hard", ref])
@@ -102,7 +102,11 @@ class UpdateManager:
         parts = args.split()
         sub = parts[0].lower() if parts else "check"
         
-        # 1. Получаем ПРЯМУЮ информацию от GitHub
+        # 0. Синхронизируем метаданные
+        if not silent: console.print("[yellow]Syncing with GitHub...[/yellow]")
+        self._git_run(["fetch", "--prune", "origin", "--quiet"])
+
+        # 1. Получаем ПРЯМУЮ информацию от GitHub (хэши голов)
         if not silent or sub != "check": console.print("[yellow]Querying GitHub for latest refs...[/yellow]")
         res_remote = self._git_run(["ls-remote", "--heads", "--tags", "origin"])
         if not res_remote or res_remote.returncode != 0:
@@ -122,42 +126,44 @@ class UpdateManager:
         local_hash = res_head.stdout.strip() if res_head else ""
         res_branch = self._git_run(["rev-parse", "--abbrev-ref", "HEAD"])
         local_branch = res_branch.stdout.strip() if res_branch else "HEAD"
-        is_pinned = local_branch.startswith('vtx/')
+        is_detached = (local_branch == "HEAD")
 
         if sub == "check":
-            # 3. Пытаемся понять, какой ветке соответствует наш код
-            true_remote_branch = None
-            for name, h in remote_refs.items():
-                if h == local_hash and not name.startswith('v'):
-                    true_remote_branch = name
-                    break
+            # 3. Детекция текущего положения (в какой ветке наш коммит?)
+            tracking_branch = None
+            if not is_detached and local_branch in remote_refs:
+                tracking_branch = local_branch
+            else:
+                # Если мы отсоединены, ищем ветку-кандидата (FIX или main)
+                res_cont = self._git_run(["branch", "-r", "--contains", local_hash])
+                if res_cont and res_cont.returncode == 0:
+                    contained_in = [b.strip().replace("origin/", "") for b in res_cont.stdout.split('\n') if b.strip()]
+                    for b in ["FIX", "main"]:
+                        if b in contained_in:
+                            tracking_branch = b
+                            break
 
             # 4. Логика уведомлений
             branch_update = False
             tag_update = False
-            
-            # Если мы на vtx/, проверяем апдейты для main или последней известной ветки
-            target_branch = local_branch if local_branch in remote_refs else "main"
-            
-            # Branch mismatch (предлагаем сменить имя ветки, если код совпадает с другой)
-            # Но молчим в автоматическом режиме, если мы специально ушли на vtx/
-            if true_remote_branch and local_branch != true_remote_branch and not is_pinned:
-                console.print(f"[yellow]⚠ Branch mismatch![/yellow] Your code matches [bold cyan]{true_remote_branch}[/bold cyan], but you are on [red]{local_branch}[/red].")
-                if self.session.prompt(f"Switch to [bold cyan]{true_remote_branch}[/bold cyan]? (y/n): ").lower() == 'y':
-                    self._checkout_and_sync(true_remote_branch, pull=True)
-                    return
+            target_branch = tracking_branch or "main"
 
-            # Если мы в авто-режиме на pinned ветке — выходим (не надоедаем)
-            if silent and is_pinned: return
+            # Branch mismatch: если мы на ветке, но её код совпадает с другой "головой"
+            if not is_detached:
+                for name, h in remote_refs.items():
+                    if h == local_hash and name != local_branch and not name.startswith('v'):
+                        console.print(f"[yellow]⚠ Branch mismatch![/yellow] Your code matches [bold cyan]{name}[/bold cyan], but you are on [red]{local_branch}[/red].")
+                        if self.session.prompt(f"Switch to [bold cyan]{name}[/bold cyan]? (y/n): ").lower() == 'y':
+                            self._checkout_and_sync(name, pull=True)
+                            return
+                        break
 
             # Проверка обновлений для ветки
             if target_branch in remote_refs:
                 remote_hash = remote_refs[target_branch]
                 if local_hash != remote_hash:
-                    # Только если хэши не совпали, делаем fetch для подсчета разницы
-                    self._git_run(["fetch", "origin", target_branch, "--quiet"])
-                    ref_to_compare = f"origin/{target_branch}" if target_branch in remote_refs else target_branch
-                    res_behind = self._git_run(["rev-list", "--count", f"HEAD..{ref_to_compare}"])
+                    # Считаем разницу через локальные метаданные
+                    res_behind = self._git_run(["rev-list", "--count", f"HEAD..origin/{target_branch}"])
                     behind = int(res_behind.stdout.strip()) if res_behind and res_behind.returncode == 0 else 0
                     branch_update = (behind > 0)
 
@@ -170,7 +176,6 @@ class UpdateManager:
             if latest_tag:
                 tag_hash = remote_refs[latest_tag]
                 if local_hash != tag_hash:
-                    self._git_run(["fetch", "origin", f"refs/tags/{latest_tag}:refs/tags/{latest_tag}", "--quiet"])
                     res_tag_behind = self._git_run(["rev-list", "--count", f"HEAD..{latest_tag}"])
                     tag_behind = int(res_tag_behind.stdout.strip()) if res_tag_behind and res_tag_behind.returncode == 0 else 0
                     tag_update = (tag_behind > 0)
@@ -178,7 +183,7 @@ class UpdateManager:
                     if tag_update:
                         console.print(f"Stable [bold magenta]{latest_tag}[/bold magenta]: [bold magenta]New stable available[/bold magenta]")
 
-            # 5. Меню обновления или финальный статус
+            # 5. Меню обновления
             if branch_update or tag_update:
                 opts = []
                 if branch_update: opts.append(f"y (update {target_branch})")
@@ -188,7 +193,8 @@ class UpdateManager:
                 if choice == 'y' and branch_update: self._checkout_and_sync(target_branch, pull=True)
                 elif choice == 's' and tag_update: self._checkout_and_sync(latest_tag)
             elif not silent:
-                info = f"of {local_branch}" if not is_pinned else f"at {local_hash[:7]}"
+                info = f"of {local_branch}" if not is_detached else f"at {local_hash[:7]}"
+                if tracking_branch and is_detached: info += f" (on {tracking_branch} track)"
                 console.print(f"[green]✅ You are on the latest version {info}.[/green]")
             return
 
@@ -207,7 +213,11 @@ class UpdateManager:
             if sel: self._checkout_and_sync(sel['name'])
 
         elif sub == "commit":
-            res = self._git_run(["log", "--all", "-n", "100", "--pretty=format:%h|%ad|%an|%s|%d", "--date=short"])
+            # Берем логи ТОЛЬКО из origin, чтобы не видеть локальный мусор
+            res = self._git_run(["log", "origin/main", "origin/FIX", "-n", "100", "--pretty=format:%h|%ad|%an|%s|%d", "--date=short"])
+            if not res or not res.stdout.strip():
+                res = self._git_run(["log", "--all", "-n", "100", "--pretty=format:%h|%ad|%an|%s|%d", "--date=short"])
+            
             commits = []
             for line in res.stdout.split('\n'):
                 p = line.split('|')
@@ -232,4 +242,3 @@ class UpdateManager:
             ], page_size=5)
             if sel: self._checkout_and_sync(sel['hash'])
         else: self._checkout_and_sync(sub)
-
