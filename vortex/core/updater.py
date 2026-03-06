@@ -120,12 +120,9 @@ class UpdateManager:
                 res_u = self._git_run(["rev-parse", "--abbrev-ref", f"{branch}@{{u}}"])
                 upstream = res_u.stdout.strip() if res_u.returncode == 0 else f"origin/{branch}"
 
-                # Проверяем наличие коммитов в апстриме
-                current_commit = self._git_run(["rev-parse", "HEAD"]).stdout.strip()
-                res_up_commit = self._git_run(["rev-parse", upstream])
-                if res_up_commit and res_up_commit.returncode == 0:
-                    latest_branch_commit = res_up_commit.stdout.strip()
-                    branch_update = (current_commit != latest_branch_commit)
+                # Проверяем наличие НОВЫХ коммитов в апстриме
+                res_up_count = self._git_run(["rev-list", "--count", f"HEAD..{upstream}"])
+                branch_update = (res_up_count and res_up_count.returncode == 0 and int(res_up_count.stdout.strip()) > 0)
 
             # 3. Работа с тегами (только для main)
             latest_tag = None
@@ -135,9 +132,9 @@ class UpdateManager:
                 tags = [t.strip() for t in res_tags.stdout.split('\n') if t.strip()]
                 if tags:
                     latest_tag = tags[0]
-                    current_commit = self._git_run(["rev-parse", "HEAD"]).stdout.strip()
-                    tag_commit = self._git_run(["rev-parse", latest_tag]).stdout.strip()
-                    tag_update = (current_commit != tag_commit)
+                    # Проверяем, есть ли в теге коммиты, которых нет в HEAD
+                    res_tag_count = self._git_run(["rev-list", "--count", f"HEAD..{latest_tag}"])
+                    tag_update = (res_tag_count and res_tag_count.returncode == 0 and int(res_tag_count.stdout.strip()) > 0)
 
             # 4. Логика вывода
             if branch_update or tag_update:

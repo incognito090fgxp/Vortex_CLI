@@ -40,3 +40,8 @@ We use a 4-digit versioning scheme: **Release.Beta.DEV.FIX** (e.g., `0.3.1.8`)
 - **Alternate Screen Buffer**: Uses `console.screen()` to provide a "clean window" experience.
 - **Keyboard Navigation**: Supports Arrow keys and fast numeric input.
 - **Adaptive Rendering**: Supports dynamic content truncation based on terminal width.
+
+## 🔄 Git-based Update Protocol
+- **Ahead/Behind Validation**: Before suggesting an update, the system MUST verify that the remote ref contains new commits not present in the local HEAD using `git rev-list --count HEAD..upstream`.
+- **Downgrade Protection**: If the local branch is ahead of the remote, or if they have diverged but the remote has no unique commits, no update should be offered.
+- **Tag Policy**: Stable version updates (tags) are only offered to users on the `main` branch and only if the tag points to a commit ahead of the current HEAD.
