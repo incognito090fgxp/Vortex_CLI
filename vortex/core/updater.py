@@ -77,26 +77,22 @@ class UpdateManager:
         console.print(f"[yellow]Forcing checkout to {target}...[/yellow]")
 
         if pull:
-            # target — это имя ветки (напр. "main" или "FIX")
             self._git_run(["fetch", "origin", target, "--tags", "--force"])
-            # Принудительно переключаемся на ветку. -B создаст её или сбросит, если она есть.
             self._git_run(["checkout", "-B", target, f"origin/{target}"])
             ref = f"origin/{target}"
         else:
-            # target — это тег или хеш коммита. Переходим в detached HEAD.
-            self._git_run(["checkout", "--force", target])
+            if target.startswith('v'):
+                self._git_run(["checkout", "-B", target, target])
+            else:
+                self._git_run(["checkout", "-B", f"vtx/{target[:7]}", target])
             ref = target
 
         res = self._git_run(["reset", "--hard", ref])
         if res and res.returncode == 0:
-            # Очистка перед синхронизацией
             for p in ["build", ".build", "dist", "vortex_cli.egg-info"]:
                 shutil.rmtree(os.path.join(PROJECT_ROOT, p), ignore_errors=True)
-
             self._sync_deps(force=True)
             console.print("[bold green]✅ Updated successfully![/bold green]")
-            # Вместо жесткого exit, даем системе завершить цикл если нужно, 
-            # но в данном контексте перезапуск обычно необходим.
             sys.exit(0)
         else:
             console.print(f"[red]❌ Failed to reset to {ref}[/red]")
@@ -104,64 +100,91 @@ class UpdateManager:
     def cmd_update(self, args: str = "", silent=False):
         parts = args.split()
         sub = parts[0].lower() if parts else "check"
-        if not silent or sub != "check": console.print("[yellow]Syncing remote...[/yellow]")
-        self._git_run(["fetch", "--all", "--tags", "--force", "--quiet"])
+        
+        # 1. Получаем ПРЯМУЮ информацию от GitHub (вуаля!)
+        if not silent or sub != "check": console.print("[yellow]Querying GitHub for latest refs...[/yellow]")
+        res_remote = self._git_run(["ls-remote", "--heads", "--tags", "origin"])
+        if not res_remote or res_remote.returncode != 0:
+            console.print("[red]❌ Failed to query remote. Check connection.[/red]")
+            return
+
+        remote_refs = {} # {ref_name: hash}
+        for line in res_remote.stdout.split('\n'):
+            if not line.strip(): continue
+            h, ref = line.split('\t')
+            # Превращаем refs/heads/main -> main, refs/tags/v0.1 -> v0.1
+            name = ref.replace("refs/heads/", "").replace("refs/tags/", "")
+            remote_refs[name] = h
+
+        # 2. Локальное состояние
+        res_head = self._git_run(["rev-parse", "HEAD"])
+        local_hash = res_head.stdout.strip() if res_head else ""
+        
+        res_branch = self._git_run(["rev-parse", "--abbrev-ref", "HEAD"])
+        local_branch = res_branch.stdout.strip() if res_branch else "HEAD"
 
         if sub == "check":
-            # 1. Определяем текущую ветки
-            res_branch = self._git_run(["rev-parse", "--abbrev-ref", "HEAD"])
-            if not res_branch or res_branch.returncode != 0: return
-            branch = res_branch.stdout.strip()
-
-            # Если мы в detached HEAD, не предлагаем обновление ветки, только теги
-            is_detached = (branch == "HEAD")
-
-            # 2. Ищем апстрим только если мы на ветке
+            # 3. Пытаемся понять, где мы находимся по мнению GitHub
+            true_remote_branch = None
+            for name, h in remote_refs.items():
+                if h == local_hash and not name.startswith('v'):
+                    true_remote_branch = name
+                    break
+            
+            # 4. Логика уведомлений
             branch_update = False
-            upstream = None
-            if not is_detached:
-                res_u = self._git_run(["rev-parse", "--abbrev-ref", f"{branch}@{{u}}"])
-                upstream = res_u.stdout.strip() if res_u.returncode == 0 else f"origin/{branch}"
-
-                # Проверяем наличие НОВЫХ коммитов в апстриме
-                res_up_count = self._git_run(["rev-list", "--count", f"HEAD..{upstream}"])
-                branch_update = (res_up_count and res_up_count.returncode == 0 and int(res_up_count.stdout.strip()) > 0)
-
-            # 3. Работа с тегами (только для main)
-            latest_tag = None
             tag_update = False
-            if branch == "main":
-                res_tags = self._git_run(["tag", "-l", "--sort=-v:refname", "v*"])
-                tags = [t.strip() for t in res_tags.stdout.split('\n') if t.strip()]
-                if tags:
-                    latest_tag = tags[0]
-                    # Проверяем, есть ли в теге коммиты, которых нет в HEAD
-                    res_tag_count = self._git_run(["rev-list", "--count", f"HEAD..{latest_tag}"])
-                    tag_update = (res_tag_count and res_tag_count.returncode == 0 and int(res_tag_count.stdout.strip()) > 0)
+            target_branch = local_branch if local_branch in remote_refs else "main"
+            
+            # Если мы на "неправильной" ветке (как в твоем примере: код от FIX, а ветка DEV)
+            if true_remote_branch and local_branch != true_remote_branch and not local_branch.startswith('vtx/'):
+                console.print(f"[yellow]⚠ Branch mismatch![/yellow] Your code matches [bold cyan]{true_remote_branch}[/bold cyan], but you are on [red]{local_branch}[/red].")
+                if self.session.prompt(f"Switch to [bold cyan]{true_remote_branch}[/bold cyan]? (y/n): ").lower() == 'y':
+                    self._checkout_and_sync(true_remote_branch, pull=True)
+                    return
 
-            # 4. Логика вывода
+            # Проверка обновлений для текущей ветки
+            if target_branch in remote_refs:
+                remote_hash = remote_refs[target_branch]
+                if local_hash != remote_hash:
+                    # Проверяем, сколько коммитов позади (нужен fetch для этой команды)
+                    self._git_run(["fetch", "origin", target_branch, "--quiet"])
+                    res_behind = self._git_run(["rev-list", "--count", f"HEAD..origin/{target_branch}"])
+                    behind = int(res_behind.stdout.strip()) if res_behind and res_behind.returncode == 0 else 0
+                    branch_update = (behind > 0)
+                    
+                    if not silent or branch_update:
+                        status = f"[bold cyan]Update available[/bold cyan] ([red]-{behind}[/red] commits)" if branch_update else "[green]Local is ahead[/green]"
+                        console.print(f"Branch [bold cyan]{target_branch}[/bold cyan] ({local_hash[:7]}): {status}")
+                elif not silent:
+                    console.print(f"[green]✅ Branch {target_branch} is up to date ({local_hash[:7]}).[/green]")
+
+            # Проверка тегов
+            tags = sorted([t for t in remote_refs.keys() if t.startswith('v')], reverse=True)
+            latest_tag = tags[0] if tags else None
+            if latest_tag:
+                tag_hash = remote_refs[latest_tag]
+                if local_hash != tag_hash:
+                    self._git_run(["fetch", "origin", f"refs/tags/{latest_tag}:refs/tags/{latest_tag}", "--quiet"])
+                    res_tag_behind = self._git_run(["rev-list", "--count", f"HEAD..{latest_tag}"])
+                    tag_behind = int(res_tag_behind.stdout.strip()) if res_tag_behind and res_tag_behind.returncode == 0 else 0
+                    tag_update = (tag_behind > 0)
+                    
+                    if not silent or tag_update:
+                        status = f"[bold magenta]New stable available[/bold magenta] ({latest_tag})" if tag_update else f"[green]Current stable is {latest_tag}[/green]"
+                        console.print(f"Stable [bold magenta]{latest_tag}[/bold magenta]: {status}")
+                elif not silent:
+                    console.print(f"[green]✅ You are on the latest stable: {latest_tag}[/green]")
+
+            # 5. Меню обновления
             if branch_update or tag_update:
-                if not is_detached:
-                    status_branch = "[green]Latest[/green]" if not branch_update else f"[bold cyan]Update available ({upstream})[/bold cyan]"
-                    console.print(f"Branch [bold cyan]{branch}[/bold cyan]: {status_branch}")
-
-                if branch == "main" and latest_tag:
-                    status_tag = "[green]Current[/green]" if not tag_update else f"[bold magenta]New stable available ({latest_tag})[/bold magenta]"
-                    console.print(f"Stable [bold magenta]{latest_tag}[/bold magenta]: {status_tag}")
-
                 opts = []
-                if branch_update: opts.append("y (branch)")
-                if branch == "main" and tag_update: opts.append("s (stable)")
+                if branch_update: opts.append(f"y (update {target_branch})")
+                if tag_update: opts.append(f"s (switch to {latest_tag})")
                 opts.append("n (skip)")
-
                 choice = self.session.prompt(f"Update now? ({'/'.join(o[0] for o in opts)}): ").lower().strip()
-
-                if choice == 'y' and branch_update:
-                    self._checkout_and_sync(branch, pull=True)
-                elif choice == 's' and tag_update:
-                    self._checkout_and_sync(latest_tag)
-            elif not silent:
-                console.print(f"[green]✅ You are on the latest version of {branch}.[/green]")
+                if choice == 'y' and branch_update: self._checkout_and_sync(target_branch, pull=True)
+                elif choice == 's' and tag_update: self._checkout_and_sync(latest_tag)
             return
 
         elif sub == "branch":
@@ -184,28 +207,16 @@ class UpdateManager:
             for line in res.stdout.split('\n'):
                 p = line.split('|')
                 if len(p) >= 4:
-                    commits.append({
-                        "hash": p[0], 
-                        "date": p[1], 
-                        "author": p[2], 
-                        "subj": p[3], 
-                        "refs": p[4] if len(p) > 4 else ""
-                    })
+                    commits.append({"hash": p[0], "date": p[1], "author": p[2], "subj": p[3], "refs": p[4] if len(p) > 4 else ""})
 
             def subj_render(val, item, width):
                 parts = val.split(' ', 1)
                 ver = parts[0]
                 rest = parts[1] if len(parts) > 1 else ""
-                
-                # Занятое место: Idx(4) + Hash(7) + Date(10) + Refs(??) + Borders(~10)
                 occupied = 21 
-                if width >= 100: occupied += 11 # Дата
+                if width >= 100: occupied += 11 
                 if width >= 120: occupied += len(item.get('refs', '')) + 2
-                
-                # Если экран мал ИЛИ строка целиком не влезает
-                if width < SMALL_SCREEN_WIDTH or (occupied + len(val)) > width:
-                    return f"[bold white]{ver}[/bold white]"
-                
+                if width < SMALL_SCREEN_WIDTH or (occupied + len(val)) > width: return f"[bold white]{ver}[/bold white]"
                 return f"[bold white]{ver}[/bold white] {rest}" if rest else f"[bold white]{ver}[/bold white]"
 
             sel = pager(commits, "Recent Commits", [

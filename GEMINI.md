@@ -41,7 +41,9 @@ We use a 4-digit versioning scheme: **Release.Beta.DEV.FIX** (e.g., `0.3.1.8`)
 - **Keyboard Navigation**: Supports Arrow keys and fast numeric input.
 - **Adaptive Rendering**: Supports dynamic content truncation based on terminal width.
 
-## 🔄 Git-based Update Protocol
-- **Ahead/Behind Validation**: Before suggesting an update, the system MUST verify that the remote ref contains new commits not present in the local HEAD using `git rev-list --count HEAD..upstream`.
-- **Downgrade Protection**: If the local branch is ahead of the remote, or if they have diverged but the remote has no unique commits, no update should be offered.
-- **Tag Policy**: Stable version updates (tags) are only offered to users on the `main` branch and only if the tag points to a commit ahead of the current HEAD.
+## 🔄 Git-based Update Protocol (ls-remote)
+- **Remote Ground Truth**: The system MUST query GitHub directly via `git ls-remote` for the most accurate branch and tag hashes, bypassing local cache inconsistencies.
+- **Direct Hash Verification**: Update checks are performed by comparing the local `HEAD` hash against the remote branch hash. 
+- **Branch Mismatch Detection**: If the local code hash matches a specific remote branch (e.g., `FIX`) while the local branch is named differently (e.g., `DEV`), the system MUST offer to switch the branch name to match the code.
+- **Pinned State Handling**: When updating to a tag or a specific commit, the system MUST create a local "pinned" branch (e.g., `v0.1.2` or `vtx/a1b2c3d`) to avoid detached HEAD states and ensure clear version reporting.
+- **Ahead/Behind Logic**: If hashes differ, `git rev-list --count` is used to determine if the remote is ahead (update available) or the local is ahead (no update offered).
