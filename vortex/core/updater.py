@@ -102,36 +102,30 @@ class UpdateManager:
         parts = args.split()
         sub = parts[0].lower() if parts else "check"
         
-        # 1. Получаем ПРЯМУЮ информацию от GitHub (вуаля!)
+        # 1. Получаем ПРЯМУЮ информацию от GitHub
         if not silent or sub != "check": console.print("[yellow]Querying GitHub for latest refs...[/yellow]")
         res_remote = self._git_run(["ls-remote", "--heads", "--tags", "origin"])
         if not res_remote or res_remote.returncode != 0:
-            console.print("[red]❌ Failed to query remote. Check connection.[/red]")
+            if not silent: console.print("[red]❌ Failed to query remote. Check connection.[/red]")
             return
 
         remote_refs = {} # {ref_name: hash}
         for line in res_remote.stdout.split('\n'):
             if not line.strip(): continue
             h, ref = line.split('\t')
-            # Превращаем refs/heads/main -> main, refs/tags/v0.1 -> v0.1
             name = ref.replace("refs/heads/", "").replace("refs/tags/", "")
-            
-            # Если это аннотированный тег (указывает на коммит напрямую), 
-            # используем его хэш, но имя оставляем чистым.
-            if name.endswith("^{}"):
-                remote_refs[name[:-3]] = h
-            elif name not in remote_refs:
-                remote_refs[name] = h
+            if name.endswith("^{}"): remote_refs[name[:-3]] = h
+            elif name not in remote_refs: remote_refs[name] = h
 
         # 2. Локальное состояние
         res_head = self._git_run(["rev-parse", "HEAD"])
         local_hash = res_head.stdout.strip() if res_head else ""
-        
         res_branch = self._git_run(["rev-parse", "--abbrev-ref", "HEAD"])
         local_branch = res_branch.stdout.strip() if res_branch else "HEAD"
+        is_pinned = local_branch.startswith('vtx/')
 
         if sub == "check":
-            # 3. Пытаемся понять, где мы находимся по мнению GitHub
+            # 3. Пытаемся понять, какой ветке соответствует наш код
             true_remote_branch = None
             for name, h in remote_refs.items():
                 if h == local_hash and not name.startswith('v'):
@@ -141,21 +135,29 @@ class UpdateManager:
             # 4. Логика уведомлений
             branch_update = False
             tag_update = False
+            
+            # Если мы на vtx/, проверяем апдейты для main или последней известной ветки
             target_branch = local_branch if local_branch in remote_refs else "main"
-
-            # Если мы на "неправильной" ветке (как в твоем примере: код от FIX, а ветка DEV)
-            if true_remote_branch and local_branch != true_remote_branch and not local_branch.startswith('vtx/'):
+            
+            # Branch mismatch (предлагаем сменить имя ветки, если код совпадает с другой)
+            # Но молчим в автоматическом режиме, если мы специально ушли на vtx/
+            if true_remote_branch and local_branch != true_remote_branch and not is_pinned:
                 console.print(f"[yellow]⚠ Branch mismatch![/yellow] Your code matches [bold cyan]{true_remote_branch}[/bold cyan], but you are on [red]{local_branch}[/red].")
                 if self.session.prompt(f"Switch to [bold cyan]{true_remote_branch}[/bold cyan]? (y/n): ").lower() == 'y':
                     self._checkout_and_sync(true_remote_branch, pull=True)
                     return
 
-            # Проверка обновлений для текущей ветки
+            # Если мы в авто-режиме на pinned ветке — выходим (не надоедаем)
+            if silent and is_pinned: return
+
+            # Проверка обновлений для ветки
             if target_branch in remote_refs:
                 remote_hash = remote_refs[target_branch]
                 if local_hash != remote_hash:
+                    # Только если хэши не совпали, делаем fetch для подсчета разницы
                     self._git_run(["fetch", "origin", target_branch, "--quiet"])
-                    res_behind = self._git_run(["rev-list", "--count", f"HEAD..origin/{target_branch}"])
+                    ref_to_compare = f"origin/{target_branch}" if target_branch in remote_refs else target_branch
+                    res_behind = self._git_run(["rev-list", "--count", f"HEAD..{ref_to_compare}"])
                     behind = int(res_behind.stdout.strip()) if res_behind and res_behind.returncode == 0 else 0
                     branch_update = (behind > 0)
 
@@ -186,8 +188,8 @@ class UpdateManager:
                 if choice == 'y' and branch_update: self._checkout_and_sync(target_branch, pull=True)
                 elif choice == 's' and tag_update: self._checkout_and_sync(latest_tag)
             elif not silent:
-                # Если всё ок — одна чистая строка
-                console.print(f"[green]✅ You are on the latest version of {local_branch} ({local_hash[:7]}).[/green]")
+                info = f"of {local_branch}" if not is_pinned else f"at {local_hash[:7]}"
+                console.print(f"[green]✅ You are on the latest version {info}.[/green]")
             return
 
         elif sub == "branch":
