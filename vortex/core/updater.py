@@ -82,6 +82,7 @@ class UpdateManager:
             ref = f"origin/{target}"
         else:
             if target.startswith('v'):
+                self._git_run(["fetch", "origin", f"refs/tags/{target}:refs/tags/{target}", "--force"])
                 self._git_run(["checkout", "-B", target, target])
             else:
                 self._git_run(["checkout", "-B", f"vtx/{target[:7]}", target])
@@ -114,7 +115,13 @@ class UpdateManager:
             h, ref = line.split('\t')
             # Превращаем refs/heads/main -> main, refs/tags/v0.1 -> v0.1
             name = ref.replace("refs/heads/", "").replace("refs/tags/", "")
-            remote_refs[name] = h
+            
+            # Если это аннотированный тег (указывает на коммит напрямую), 
+            # используем его хэш, но имя оставляем чистым.
+            if name.endswith("^{}"):
+                remote_refs[name[:-3]] = h
+            elif name not in remote_refs:
+                remote_refs[name] = h
 
         # 2. Локальное состояние
         res_head = self._git_run(["rev-parse", "HEAD"])
@@ -130,12 +137,12 @@ class UpdateManager:
                 if h == local_hash and not name.startswith('v'):
                     true_remote_branch = name
                     break
-            
+
             # 4. Логика уведомлений
             branch_update = False
             tag_update = False
             target_branch = local_branch if local_branch in remote_refs else "main"
-            
+
             # Если мы на "неправильной" ветке (как в твоем примере: код от FIX, а ветка DEV)
             if true_remote_branch and local_branch != true_remote_branch and not local_branch.startswith('vtx/'):
                 console.print(f"[yellow]⚠ Branch mismatch![/yellow] Your code matches [bold cyan]{true_remote_branch}[/bold cyan], but you are on [red]{local_branch}[/red].")
@@ -147,17 +154,13 @@ class UpdateManager:
             if target_branch in remote_refs:
                 remote_hash = remote_refs[target_branch]
                 if local_hash != remote_hash:
-                    # Проверяем, сколько коммитов позади (нужен fetch для этой команды)
                     self._git_run(["fetch", "origin", target_branch, "--quiet"])
                     res_behind = self._git_run(["rev-list", "--count", f"HEAD..origin/{target_branch}"])
                     behind = int(res_behind.stdout.strip()) if res_behind and res_behind.returncode == 0 else 0
                     branch_update = (behind > 0)
-                    
-                    if not silent or branch_update:
-                        status = f"[bold cyan]Update available[/bold cyan] ([red]-{behind}[/red] commits)" if branch_update else "[green]Local is ahead[/green]"
-                        console.print(f"Branch [bold cyan]{target_branch}[/bold cyan] ({local_hash[:7]}): {status}")
-                elif not silent:
-                    console.print(f"[green]✅ Branch {target_branch} is up to date ({local_hash[:7]}).[/green]")
+
+                    if branch_update:
+                        console.print(f"Branch [bold cyan]{target_branch}[/bold cyan] ({local_hash[:7]}): [bold cyan]Update available[/bold cyan] ([red]-{behind}[/red] commits)")
 
             # Проверка тегов
             tags = sorted([t for t in remote_refs.keys() if t.startswith('v')], reverse=True)
@@ -169,14 +172,11 @@ class UpdateManager:
                     res_tag_behind = self._git_run(["rev-list", "--count", f"HEAD..{latest_tag}"])
                     tag_behind = int(res_tag_behind.stdout.strip()) if res_tag_behind and res_tag_behind.returncode == 0 else 0
                     tag_update = (tag_behind > 0)
-                    
-                    if not silent or tag_update:
-                        status = f"[bold magenta]New stable available[/bold magenta] ({latest_tag})" if tag_update else f"[green]Current stable is {latest_tag}[/green]"
-                        console.print(f"Stable [bold magenta]{latest_tag}[/bold magenta]: {status}")
-                elif not silent:
-                    console.print(f"[green]✅ You are on the latest stable: {latest_tag}[/green]")
 
-            # 5. Меню обновления
+                    if tag_update:
+                        console.print(f"Stable [bold magenta]{latest_tag}[/bold magenta]: [bold magenta]New stable available[/bold magenta]")
+
+            # 5. Меню обновления или финальный статус
             if branch_update or tag_update:
                 opts = []
                 if branch_update: opts.append(f"y (update {target_branch})")
@@ -185,6 +185,9 @@ class UpdateManager:
                 choice = self.session.prompt(f"Update now? ({'/'.join(o[0] for o in opts)}): ").lower().strip()
                 if choice == 'y' and branch_update: self._checkout_and_sync(target_branch, pull=True)
                 elif choice == 's' and tag_update: self._checkout_and_sync(latest_tag)
+            elif not silent:
+                # Если всё ок — одна чистая строка
+                console.print(f"[green]✅ You are on the latest version of {local_branch} ({local_hash[:7]}).[/green]")
             return
 
         elif sub == "branch":
