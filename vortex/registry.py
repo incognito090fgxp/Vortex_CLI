@@ -14,6 +14,7 @@ SETTINGS_PATH = os.path.join(PROJECT_ROOT, ".vortex_settings.json")
 # --- РЕЕСТР ПУТЕЙ К ФАЙЛАМ ИСХОДНОГО КОДА ---
 CONFIG_FILE = os.path.join(PACKAGE_DIR, "config", "manager.py")
 DB_FILE = os.path.join(PACKAGE_DIR, "database", "db.py")
+DB_README = os.path.join(PACKAGE_DIR, "database", "README.md")
 CLI_FILE = os.path.join(PACKAGE_DIR, "core", "cli.py")
 UPDATER_FILE = os.path.join(PACKAGE_DIR, "core", "updater.py")
 AUTH_FILE = os.path.join(PACKAGE_DIR, "core", "auth.py")

@@ -28,7 +28,8 @@ FOLDER: vortex/config/
 
 FOLDER: vortex/database/
 ------------------------
-- db.py: PostgreSQL connectivity (psycopg) and standard query/table command logic.
+- db.py: PostgreSQL connectivity (psycopg 3). Includes Table Explorer (structure/data/actions), DB statistics, and interactive SQL runner.
+- README.md: Technical documentation and development instructions for the database module.
 
 FILE: vortex/registry.py
 ------------------------
