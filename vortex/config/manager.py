@@ -4,7 +4,7 @@ import os
 from ..registry import SETTINGS_PATH, ENV_PATH, HISTORY_PATH, PROJECT_ROOT, PACKAGE_DIR
 
 # Версия: Release.Beta.DEV.FIX
-VERSION = "0.3.4.2"
+VERSION = "0.3.4.3"
 # Порог для маленьких экранов
 SMALL_SCREEN_WIDTH = 65
 

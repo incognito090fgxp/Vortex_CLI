@@ -76,12 +76,15 @@ class UpdateManager:
     def _checkout_and_sync(self, target: str, pull: bool = False):
         console.print(f"[yellow]Forcing checkout to {target}...[/yellow]")
 
-        # Если pull=True, значит target — это имя ветки (напр. "main" или "FIX")
         if pull:
+            # target — это имя ветки (напр. "main" или "FIX")
             self._git_run(["fetch", "origin", target, "--tags", "--force"])
+            # Принудительно переключаемся на ветку. -B создаст её или сбросит, если она есть.
+            self._git_run(["checkout", "-B", target, f"origin/{target}"])
             ref = f"origin/{target}"
         else:
-            # Если pull=False, target — это либо тег, либо хеш, либо уже полный ref
+            # target — это тег или хеш коммита. Переходим в detached HEAD.
+            self._git_run(["checkout", "--force", target])
             ref = target
 
         res = self._git_run(["reset", "--hard", ref])
