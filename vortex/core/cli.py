@@ -51,7 +51,6 @@ class VortexCLI:
                 console.print(f"auto_update is {config.get('auto_update')}")
             return
 
-        # Описания настроек для красоты
         META = {
             "auto_update": "Automatically check for updates on startup",
             "theme": "CLI color theme (dark/light)",
@@ -61,11 +60,7 @@ class VortexCLI:
         while True:
             settings_list = []
             for k, v in config.settings.items():
-                settings_list.append({
-                    "key": k, 
-                    "val": v, 
-                    "desc": META.get(k, "No description available")
-                })
+                settings_list.append({"key": k, "val": v, "desc": META.get(k, "No description available")})
 
             selected = pager(
                 settings_list, 
@@ -75,42 +70,28 @@ class VortexCLI:
                     {"name": "Current Value", "key": "val", "style": "yellow"},
                     {"name": "Description", "key": "desc", "style": "dim"}
                 ],
-                description="[bold yellow]TIP:[/bold yellow] Booleans toggle on Enter, others will prompt for value."
+                description="[bold yellow]TIP:[/bold yellow] Enter to toggle/edit."
             )
 
-            if not selected:
-                break
+            if not selected: break
 
-            key = selected['key']
-            val = selected['val']
-
+            key, val = selected['key'], selected['val']
             if isinstance(val, bool):
-                new_val = not val
-                config.set(key, new_val)
+                config.set(key, not val)
             else:
                 try:
                     new_val_str = self.session.prompt(f"Enter new value for {key}: ", default=str(val)).strip()
-                    if not new_val_str or new_val_str == str(val):
-                        continue
-                    
+                    if not new_val_str or new_val_str == str(val): continue
                     if isinstance(val, int): new_val = int(new_val_str)
                     elif isinstance(val, float): new_val = float(new_val_str)
                     else: new_val = new_val_str
-                    
                     config.set(key, new_val)
-                except (KeyboardInterrupt, EOFError):
-                    break
-                except ValueError:
-                    console.print("[red]Invalid type![/red]")
-                    import time
-                    time.sleep(1)
+                except: break
 
     def run(self):
         console.print(get_banner())
-        
         if config.get("auto_update"):
             self.updater.cmd_update(silent=True)
-        
         if not self.auth.is_configured(): 
             self.auth.cmd_auth()
         
@@ -132,15 +113,16 @@ class VortexCLI:
                 elif cmd == 'auth': self.auth.cmd_auth()
                 elif cmd == 'update': self.updater.cmd_update(arg)
                 elif cmd == 'config': self.cmd_config(arg)
-                elif cmd == 'check': self.db.cmd_check()
-                elif cmd == 'tables': self.db.cmd_tables()
-                elif cmd == 'query': self.db.cmd_query(arg)
+                elif cmd == 'db': self.db.cmd_db()
                 elif cmd == 'clear': 
                     os.system('cls' if os.name == 'nt' else 'clear')
                     console.print(get_banner())
                 else:
-                    if cmd in ('select', 'insert', 'update', 'delete', 'create', 'drop', 'with'): self.db.cmd_query(text)
-                    else: console.print(f"[red]Unknown: {cmd}[/red]")
+                    # Smart SQL detection: if starts with SQL keyword, jump into DB module query
+                    if cmd in ('select', 'insert', 'update', 'delete', 'create', 'drop', 'with'):
+                        self.db.cmd_query(text)
+                    else:
+                        console.print(f"[red]Unknown: {cmd}[/red]")
                 self.ctrl_c_count = 0
             except KeyboardInterrupt:
                 self.ctrl_c_count += 1

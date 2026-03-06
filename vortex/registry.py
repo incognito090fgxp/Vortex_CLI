@@ -7,14 +7,27 @@ PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(PACKAGE_DIR)
 
 # --- ПУТИ К ФАЙЛАМ ДАННЫХ ---
+DATA_DIR = os.path.join(PROJECT_ROOT, ".vortex_data")
 ENV_PATH = os.path.join(PROJECT_ROOT, ".env")
-HISTORY_PATH = os.path.join(PROJECT_ROOT, ".vortex_history")
-SETTINGS_PATH = os.path.join(PROJECT_ROOT, ".vortex_settings.json")
+HISTORY_PATH = os.path.join(DATA_DIR, "history")
+SQL_HISTORY_PATH = os.path.join(DATA_DIR, "sql_history")
+SETTINGS_PATH = os.path.join(DATA_DIR, "settings.json")
+
+# Ensure data directory exists
+if not os.path.exists(DATA_DIR):
+    try: os.makedirs(DATA_DIR)
+    except: pass
 
 # --- РЕЕСТР ПУТЕЙ К ФАЙЛАМ ИСХОДНОГО КОДА ---
 CONFIG_FILE = os.path.join(PACKAGE_DIR, "config", "manager.py")
 DB_FILE = os.path.join(PACKAGE_DIR, "database", "db.py")
+DB_CORE = os.path.join(PACKAGE_DIR, "database", "core.py")
+DB_EXPLORER = os.path.join(PACKAGE_DIR, "database", "explorer.py")
+DB_SCHEMA = os.path.join(PACKAGE_DIR, "database", "schema.py")
+DB_BROWSER = os.path.join(PACKAGE_DIR, "database", "browser.py")
+DB_CONSOLE = os.path.join(PACKAGE_DIR, "database", "console.py")
 DB_README = os.path.join(PACKAGE_DIR, "database", "README.md")
+
 CLI_FILE = os.path.join(PACKAGE_DIR, "core", "cli.py")
 UPDATER_FILE = os.path.join(PACKAGE_DIR, "core", "updater.py")
 AUTH_FILE = os.path.join(PACKAGE_DIR, "core", "auth.py")

@@ -1,27 +1,16 @@
-# Виртуальное окружение
-venv/
-.venv/
-env/
-
-# Секреты
-.env
-
-# Python
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
-.pytest_cache/
 
-# Сборка
-build/
-dist/
-*.egg-info/
-.build/
+# Environments
+.env
+venv/
+ENV/
 
-# IDE
+# Vortex Data
+.vortex_data/
+
+# IDEs
 .vscode/
 .idea/
-
-# settings & logs
-.vortex_settings.json
-.vortex_history

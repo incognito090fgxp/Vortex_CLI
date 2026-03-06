@@ -69,7 +69,6 @@ def pager(items, title, columns, page_size=5, description=None):
                     val = item.get(col['key'], '')
                     
                     if 'render' in col:
-                        # Передаем ширину терминала в рендерер
                         val = col['render'](val, item, width)
                     elif isinstance(val, bool):
                         val = "[bold green]✔[/bold green]" if val else "[bold red]✘[/bold red]"
@@ -149,3 +148,5 @@ def pager(items, title, columns, page_size=5, description=None):
                     idx = int(value)
                     if 1 <= idx <= total_items: return items[idx-1]
                     else: console.print(f"[red]Invalid ID: {idx}[/red]")
+                else:
+                    return value

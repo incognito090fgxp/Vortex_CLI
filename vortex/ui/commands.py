@@ -2,9 +2,7 @@
 
 # CLI System Commands Descriptions
 CLI_COMMANDS = {
-    "check": "Проверить соединение с базой данных",
-    "tables": "Вывести список всех таблиц в схеме public",
-    "query": "Выполнить произвольный SQL запрос",
+    "db": "Управление базой данных (проводник, статистика, консоль)",
     "auth": "Перенастроить параметры подключения (.env)",
     "update": "Управление обновлениями (ветки, теги, коммиты)",
     "config": "Настройки CLI (автообновление и др.)",
@@ -13,7 +11,7 @@ CLI_COMMANDS = {
     "exit": "Выйти из Vortex CLI",
 }
 
-# Дополнительные описания для подкоманд (для мета-информации в подсказках)
+# Дополнительные описания для подкоманд
 SUB_COMMANDS = {
     "UPDATE CHECK": "Проверить наличие обновлений на текущей ветке",
     "UPDATE BRANCH": "Выбрать и переключиться на другую ветку",
@@ -27,8 +25,7 @@ ALL_DESCRIPTIONS.update(SUB_COMMANDS)
 def get_completer_map():
     """Returns the command map for autocomplete"""
     return {
-        "check": None,
-        "tables": None,
+        "db": None,
         "auth": None,
         "update": {
             "check": None,
@@ -43,5 +40,4 @@ def get_completer_map():
         "clear": None,
         "help": None,
         "exit": None,
-        "query": None,
     }

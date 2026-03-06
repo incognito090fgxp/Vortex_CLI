@@ -28,12 +28,23 @@ FOLDER: vortex/config/
 
 FOLDER: vortex/database/
 ------------------------
-- db.py: PostgreSQL connectivity (psycopg 3). Includes Table Explorer (structure/data/actions), DB statistics, and interactive SQL runner.
-- README.md: Technical documentation and development instructions for the database module.
+- db.py: Unified Database UI Interface. Orchestrates core, explorer, and console modules.
+- core.py: Low-level engine (ConnectionManager). Centralized query execution with dict_row.
+- explorer.py: Navigation hub for database tables.
+- schema.py: Module for table structure and column management.
+- browser.py: Interactive data browser for row-level viewing.
+- console.py: Dedicated SQL Console (REPL) with private command history.
+- README.md: Comprehensive technical manual for the Database Ecosystem.
+
+FOLDER: .vortex_data/ (Internal Data)
+-------------------------------------
+- history: Main CLI command history.
+- sql_history: Dedicated history for SQL Console queries.
+- settings.json: Local CLI persistent preferences.
 
 FILE: vortex/registry.py
 ------------------------
-- A centralized list of absolute file paths and module names for dynamic lookups.
+- Centralized source of truth for absolute file paths and module names.
 
 FILE: vortex/__init__.py
 ------------------------
@@ -42,8 +53,6 @@ FILE: vortex/__init__.py
 EXTERNAL FILES (ROOT):
 ----------------------
 - .env: Database credentials (git-ignored).
-- .vortex_settings.json: Local CLI preferences (git-ignored).
-- .vortex_history: Command history for prompt_toolkit (git-ignored).
 - pyproject.toml: Build configuration and dependency list.
-- MODULES_GUIDE.md: Strict workflow instructions for adding new system components.
+- MODULES_GUIDE.md: Strict workflow instructions for system components.
 - GEMINI.md: Mandatory engineering guide and system file map.
