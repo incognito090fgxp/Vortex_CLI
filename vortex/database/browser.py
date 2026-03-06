@@ -12,7 +12,7 @@ class DataBrowser:
 
     def browse_data(self, table_name):
         while True:
-            rows = self.core._execute(f"SELECT * FROM {table_name} LIMIT 200")
+            rows = self.core._execute(f'SELECT * FROM "{table_name}" LIMIT 200')
             if not rows:
                 console.print(f"[yellow]Table {table_name} is empty.[/yellow]")
                 return

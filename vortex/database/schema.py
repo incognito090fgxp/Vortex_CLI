@@ -48,11 +48,11 @@ class SchemaManager:
         
         if choice['id'] == "drop":
             if self._confirm_danger(f"DROP column {column_name}?"):
-                self.core._execute(f"ALTER TABLE {table_name} DROP COLUMN {column_name}", fetch=False, commit=True)
+                self.core._execute(f'ALTER TABLE "{table_name}" DROP COLUMN "{column_name}"', fetch=False, commit=True)
         elif choice['id'] == "rename":
             new_name = pk_prompt(f"New name for {column_name}: ").strip()
             if new_name:
-                self.core._execute(f"ALTER TABLE {table_name} RENAME COLUMN {column_name} TO {new_name}", fetch=False, commit=True)
+                self.core._execute(f'ALTER TABLE "{table_name}" RENAME COLUMN "{column_name}" TO "{new_name}"', fetch=False, commit=True)
 
     def _confirm_danger(self, message):
         try:

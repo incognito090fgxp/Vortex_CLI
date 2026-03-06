@@ -56,10 +56,10 @@ class TableExplorer:
             elif cid == "browse": self.browser.browse_data(table_name)
             elif cid == "truncate":
                 if self._confirm_danger(f"Truncate table {table_name}?"):
-                    self.core._execute(f"TRUNCATE TABLE {table_name} CASCADE", fetch=False, commit=True)
+                    self.core._execute(f'TRUNCATE TABLE "{table_name}" CASCADE', fetch=False, commit=True)
             elif cid == "drop":
                 if self._confirm_danger(f"DROP table {table_name}?"):
-                    self.core._execute(f"DROP TABLE {table_name} CASCADE", fetch=False, commit=True)
+                    self.core._execute(f'DROP TABLE "{table_name}" CASCADE', fetch=False, commit=True)
                     return
 
     def _confirm_danger(self, message):
