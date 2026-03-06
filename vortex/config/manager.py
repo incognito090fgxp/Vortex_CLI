@@ -4,7 +4,7 @@ import os
 from ..registry import SETTINGS_PATH, ENV_PATH, HISTORY_PATH, PROJECT_ROOT, PACKAGE_DIR
 
 # Версия: Release.Beta.DEV.FIX
-VERSION = "0.3.2.0"
+VERSION = "0.3.3.0"
 # Порог для маленьких экранов
 SMALL_SCREEN_WIDTH = 65
 
@@ -13,7 +13,6 @@ DEFAULT_SETTINGS = {
     "auto_update": True,
     "theme": "dark",
     "history_limit": 1000,
-    "last_branch": "main",
 }
 
 class VortexConfig:

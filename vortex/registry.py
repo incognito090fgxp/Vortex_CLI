@@ -14,6 +14,7 @@ SETTINGS_PATH = os.path.join(PROJECT_ROOT, ".vortex_settings.json")
 # --- РЕЕСТР ПУТЕЙ К ФАЙЛАМ ИСХОДНОГО КОДА ---
 CONFIG_FILE = os.path.join(PACKAGE_DIR, "config", "manager.py")
 DB_FILE = os.path.join(PACKAGE_DIR, "database", "db.py")
+DB_README = os.path.join(PACKAGE_DIR, "database", "README.md")
 CLI_FILE = os.path.join(PACKAGE_DIR, "core", "cli.py")
 UPDATER_FILE = os.path.join(PACKAGE_DIR, "core", "updater.py")
 AUTH_FILE = os.path.join(PACKAGE_DIR, "core", "auth.py")
@@ -22,6 +23,8 @@ COMPLETER_FILE = os.path.join(PACKAGE_DIR, "ui", "completer.py")
 BANNER_FILE = os.path.join(PACKAGE_DIR, "ui", "banner.py")
 STYLE_FILE = os.path.join(PACKAGE_DIR, "ui", "style.py")
 ENGINE_DIR = os.path.join(PACKAGE_DIR, "ui", "engine")
+ENGINE_README = os.path.join(ENGINE_DIR, "README.md")
+GEMINI_FILE = os.path.join(PROJECT_ROOT, "GEMINI.md")
 
 # --- РЕЕСТР МОДУЛЕЙ ДЛЯ ИМПОРТА ---
 MOD_CONFIG = "vortex.config.manager"

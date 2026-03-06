@@ -6,7 +6,7 @@ This file describes the system modules and their responsibilities.
 FOLDER: vortex/core/
 --------------------
 - cli.py: The main REPL engine. Orchestrates all modules and runs the input loop.
-- updater.py: Git-based update system. Optimized for Termux (uses reset --hard).
+- updater.py: Dynamic Git-based update system. Auto-detects branch upstream and offers stable tag switching for 'main' branch users.
 - auth.py: Manages .env configuration and database credentials setup.
 
 FOLDER: vortex/ui/
@@ -28,7 +28,8 @@ FOLDER: vortex/config/
 
 FOLDER: vortex/database/
 ------------------------
-- db.py: PostgreSQL connectivity (psycopg) and standard query/table command logic.
+- db.py: PostgreSQL connectivity (psycopg 3). Includes Table Explorer (structure/data/actions), DB statistics, and interactive SQL runner.
+- README.md: Technical documentation and development instructions for the database module.
 
 FILE: vortex/registry.py
 ------------------------
@@ -45,3 +46,4 @@ EXTERNAL FILES (ROOT):
 - .vortex_history: Command history for prompt_toolkit (git-ignored).
 - pyproject.toml: Build configuration and dependency list.
 - MODULES_GUIDE.md: Strict workflow instructions for adding new system components.
+- GEMINI.md: Mandatory engineering guide and system file map.
