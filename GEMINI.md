@@ -21,6 +21,8 @@ We use a 4-digit versioning scheme: **Release.Beta.DEV.FIX** (e.g., `0.3.1.8`)
 
 ## 🔄 Update & Sync Mechanism (Termux Optimized)
 - **Git Strategy**: Uses `git reset --hard` to bypass "divergent branches" errors.
+- **Dynamic Detection**: Automatically identifies the current branch and its upstream; no hardcoded branch names.
+- **Stable Tags**: On the `main` branch, the system tracks the latest `v*` tags. Users on `main` are offered a "Stable" update option (`s`) if a newer tag is available.
 - **Cleanup**: Proactively removes `build/`, `.build/`, and `*.egg-info` to fix `egg_base` errors.
 - **Shadowing Check**: Be aware that a `vortex.py` launcher exists in the root; it is designed not to shadow the package via absolute imports.
 

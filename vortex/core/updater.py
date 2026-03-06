@@ -6,7 +6,7 @@ import subprocess
 import shutil
 from rich.console import Console
 
-from ..config.manager import config, PROJECT_ROOT, SMALL_SCREEN_WIDTH
+from ..config.manager import config, PROJECT_ROOT, SMALL_SCREEN_WIDTH, VERSION
 from ..ui.engine import pager
 
 console = Console()
@@ -89,34 +89,60 @@ class UpdateManager:
         self._git_run(["fetch", "--all", "--tags", "--force", "--quiet"])
 
         if sub == "check":
-            res = self._git_run(["rev-parse", "--abbrev-ref", "HEAD"])
-            if not res or res.returncode != 0: return
-            branch = res.stdout.strip()
-            if branch != "HEAD": config.set("last_branch", branch)
-
-            if branch in ("main", "FIX"):
-                res_tags = self._git_run(["tag", "-l"])
-                tags = sorted([t.strip() for t in res_tags.stdout.split('\n') if re.match(r"^v\d+$", t.strip())], key=lambda x: int(x[1:]), reverse=True)
-                stable = tags[0] if tags else None
-                latest = self._git_run(["rev-parse", f"origin/{branch}"]).stdout.strip()
-                current = self._git_run(["rev-parse", "HEAD"]).stdout.strip()
-
-                if latest and current != latest:
-                    console.print(f"[bold cyan]🚀 Update available for {branch}![/bold cyan]")
-                    choice = self.session.prompt("Update now? (y/n/s): " if stable else "Update now? (y/n): ").lower().strip()
-                    if choice == 'y': self._checkout_and_sync(branch, pull=True)
-                    elif choice == 's' and stable: self._checkout_and_sync(stable)
-                elif not silent: console.print("[green]Latest version.[/green]")
-                return
+            # 1. Определение текущей ветки и апстрима
+            res_branch = self._git_run(["rev-parse", "--abbrev-ref", "HEAD"])
+            if not res_branch or res_branch.returncode != 0: return
+            branch = res_branch.stdout.strip()
 
             res_u = self._git_run(["rev-parse", "--abbrev-ref", f"{branch}@{{u}}"])
             upstream = res_u.stdout.strip() if res_u.returncode == 0 else f"origin/{branch}"
-            behind = int(self._git_run(["rev-list", "--count", f"HEAD..{upstream}"]).stdout.strip() or 0)
-            if behind > 0:
-                console.print(f"[bold cyan]🚀 Update available! Behind {upstream} by {behind} commit(s).[/bold cyan]")
-                if self.session.prompt("Update now? (y/n): ").lower().strip() == 'y':
-                    self._checkout_and_sync(branch if branch != "HEAD" else upstream.split("/")[-1], pull=True)
-            elif not silent: console.print(f"[green]Latest version (relative to {upstream}).[/green]")
+            
+            # 2. Сравнение коммитов
+            current_commit = self._git_run(["rev-parse", "HEAD"]).stdout.strip()
+            
+            res_up_commit = self._git_run(["rev-parse", upstream])
+            latest_branch_commit = res_up_commit.stdout.strip() if res_up_commit and res_up_commit.returncode == 0 else None
+            branch_update = latest_branch_commit and current_commit != latest_branch_commit
+
+            # 3. Информация о тегах (только для main)
+            latest_tag = None
+            tag_commit = None
+            if branch == "main":
+                # Берем самый свежий тег v*
+                res_tags = self._git_run(["tag", "-l", "--sort=-v:refname", "v*"])
+                tags = [t.strip() for t in res_tags.stdout.split('\n') if t.strip()]
+                if tags:
+                    latest_tag = tags[0]
+                    tag_commit = self._git_run(["rev-parse", latest_tag]).stdout.strip()
+
+            tag_update = latest_tag and current_commit != tag_commit
+
+            # 4. Вывод статуса и предложение обновиться
+            if branch_update or tag_update:
+                if branch == "main":
+                    status_branch = "[green]Latest[/green]" if not branch_update else "[bold cyan]Update available[/bold cyan]"
+                    status_tag = "[green]Current[/green]" if not tag_update else "[bold magenta]New stable available[/bold magenta]"
+                    
+                    console.print(f"Branch [bold cyan]{branch}[/bold cyan]: {status_branch}")
+                    if latest_tag:
+                        console.print(f"Stable [bold magenta]{latest_tag}[/bold magenta]: {status_tag}")
+                else:
+                    console.print(f"[bold cyan]🚀 Update available for {branch} (behind {upstream})[/bold cyan]")
+
+                opts = []
+                if branch_update: opts.append("y (pull)")
+                if branch == "main" and tag_update: opts.append("s (stable)")
+                opts.append("n (skip)")
+                
+                choice = self.session.prompt(f"Update now? ({'/'.join(o[0] for o in opts)}): ").lower().strip()
+                
+                if choice == 'y' and branch_update:
+                    self._checkout_and_sync(branch, pull=True)
+                elif choice == 's' and branch == "main" and tag_update:
+                    self._checkout_and_sync(latest_tag)
+            elif not silent:
+                console.print(f"[green]Latest version on {branch}.[/green]")
+            return
 
         elif sub == "branch":
             res = self._git_run(["branch", "-r"])

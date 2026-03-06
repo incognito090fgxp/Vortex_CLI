@@ -56,7 +56,6 @@ class VortexCLI:
             "auto_update": "Automatically check for updates on startup",
             "theme": "CLI color theme (dark/light)",
             "history_limit": "Number of commands to keep in history",
-            "last_branch": "Last used git branch for updates"
         }
 
         while True:

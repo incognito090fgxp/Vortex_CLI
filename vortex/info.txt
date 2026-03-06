@@ -6,7 +6,7 @@ This file describes the system modules and their responsibilities.
 FOLDER: vortex/core/
 --------------------
 - cli.py: The main REPL engine. Orchestrates all modules and runs the input loop.
-- updater.py: Git-based update system. Optimized for Termux (uses reset --hard).
+- updater.py: Dynamic Git-based update system. Supports auto-detection of branch upstream and stable tag (v*) switching for main branch.
 - auth.py: Manages .env configuration and database credentials setup.
 
 FOLDER: vortex/ui/
