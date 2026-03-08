@@ -14,7 +14,7 @@
 - `vortex.bat`: **[NEW]** Specialized Windows launcher (PowerShell/CMD compatible).
 - `vortex.run`: **[NEW]** Universal Bash launcher (Linux/macOS/Termux/Git Bash).
 - `vortex/config/manager.py`: Global configuration, VERSION constant, and settings persistence.
-- `.vortex_data/`: **[NEW]** Centralized storage for history and local settings.
+- `.vortex_data/`: **[NEW]** Centralized storage for history, local settings, and package metadata (`vortex_cli.egg-info`).
 - `vortex/core/cli.py`: Main REPL loop and command orchestration.
 - `vortex/database/`: **[MODULAR]**
     - `db.py`: Unified entry point (Orchestrator).

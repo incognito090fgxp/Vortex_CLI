@@ -6,7 +6,7 @@ import subprocess
 import shutil
 from rich.console import Console
 
-from ..config.manager import config, PROJECT_ROOT, SMALL_SCREEN_WIDTH, VERSION
+from ..config.manager import config, PROJECT_ROOT, EGG_INFO_DIR, SMALL_SCREEN_WIDTH, VERSION
 from ..ui.engine import pager
 
 console = Console()
@@ -87,6 +87,8 @@ class UpdateManager:
             return
 
         try:
+            # Clean both root and .vortex_data egg-info
+            shutil.rmtree(EGG_INFO_DIR, ignore_errors=True)
             for p in ["build", ".build", "vortex_cli.egg-info"]:
                 shutil.rmtree(os.path.join(PROJECT_ROOT, p), ignore_errors=True)
 
@@ -101,6 +103,11 @@ class UpdateManager:
 
             res = subprocess.run(cmd, cwd=PROJECT_ROOT, capture_output=True, text=True)
             if res.returncode == 0: 
+                # If egg-info appeared in root, try to move it to .vortex_data
+                root_egg = os.path.join(PROJECT_ROOT, "vortex_cli.egg-info")
+                if os.path.exists(root_egg) and not os.path.exists(EGG_INFO_DIR):
+                    try: shutil.move(root_egg, EGG_INFO_DIR)
+                    except: pass
                 console.print("[green]✅ Dependencies synchronized.[/green]")
             else: 
                 console.print(f"[red]❌ Sync failed. Try running manually:[/red]")
@@ -124,6 +131,7 @@ class UpdateManager:
 
         res = self._git_run(["reset", "--hard", ref])
         if res and res.returncode == 0:
+            shutil.rmtree(EGG_INFO_DIR, ignore_errors=True)
             for p in ["build", ".build", "dist", "vortex_cli.egg-info"]:
                 shutil.rmtree(os.path.join(PROJECT_ROOT, p), ignore_errors=True)
             self._sync_deps(force=True)

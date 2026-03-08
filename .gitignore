@@ -10,6 +10,8 @@ ENV/
 
 # Vortex Data
 .vortex_data/
+*.egg-info/
+vortex_cli.egg-info/
 
 # IDEs
 .vscode/

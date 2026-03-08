@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 import json
 import os
-from ..registry import SETTINGS_PATH, ENV_PATH, HISTORY_PATH, PROJECT_ROOT, PACKAGE_DIR
+from ..registry import SETTINGS_PATH, ENV_PATH, HISTORY_PATH, PROJECT_ROOT, PACKAGE_DIR, EGG_INFO_DIR
 
 # Версия: Release.Beta.DEV.FIX
-VERSION = "0.3.4.9"
+VERSION = "0.3.4.10"
 # Порог для маленьких экранов
 SMALL_SCREEN_WIDTH = 65
 

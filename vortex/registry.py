@@ -12,6 +12,7 @@ ENV_PATH = os.path.join(PROJECT_ROOT, ".env")
 HISTORY_PATH = os.path.join(DATA_DIR, "history")
 SQL_HISTORY_PATH = os.path.join(DATA_DIR, "sql_history")
 SETTINGS_PATH = os.path.join(DATA_DIR, "settings.json")
+EGG_INFO_DIR = os.path.join(DATA_DIR, "vortex_cli.egg-info")
 
 # Ensure data directory exists
 if not os.path.exists(DATA_DIR):
