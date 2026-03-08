@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Vortex CLI Launcher for Linux / MacOS / Termux / Windows (Git Bash)
+BASE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+
+# Detect if we are on Windows (even if using bash)
+if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" || "$OSTYPE" == "win32" ]]; then
+    VENV_PYTHON="$BASE_DIR/venv/Scripts/python.exe"
+else
+    VENV_PYTHON="$BASE_DIR/venv/bin/python"
+fi
+
+if [ -f "$VENV_PYTHON" ]; then
+    "$VENV_PYTHON" -m vortex.core.cli "$@"
+else
+    echo "[ERROR] Virtual environment not found at $BASE_DIR/venv"
+    echo "Please ensure the 'venv' directory exists and is correctly set up."
+    exit 1
+fi

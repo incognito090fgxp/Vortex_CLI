@@ -93,59 +93,13 @@ deactivate
 
 
 
-## Quick start guide (only Windows):
+## ⚡ Quick Launch (Portable)
+
+If you don't want to install the CLI globally, you can use these launchers. They automatically detect and use the `venv` in the project root:
 
 
-### Installing and configuring pipx
-
-```bash
-python -m pipx ensurepath
-```
-
-
-
-### 2. Install Vortex
-
-
-#### Navigate to the project folder and run:
-
-```bash
-pipx install -e .
-```
-
-
-
-### 🛠 Usage
-
-
-#### Simply type the following in any terminal window:
-
-```bash
-vortex
-```
-
-
-
-### Remove link
-
-##### ⚙️ If you have moved the CLI folder, don't forget to do this
-
-
-#### 1. Remove link (wow)
-
-```bash
-pipx uninstall vortex-cli
-```
-
-
-#### 2. Go to the folder with CLI (`...\Vortex_CLI`)
-
-
-#### 3. We write the command again.
-
-```bash
-pipx install -e .
-```
+- **Windows:** Run `.\vortex.bat` or just double-click it.
+- **Linux / macOS / Termux / Git Bash:** Run `./vortex.run`.
 
 
 

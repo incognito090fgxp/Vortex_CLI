@@ -11,6 +11,8 @@
 ## 📂 System File Map (Internal Reference)
 - `vortex/registry.py`: Central source of truth for all project paths and module names.
 - `vortex/info.txt`: High-level architectural overview and module responsibilities.
+- `vortex.bat`: **[NEW]** Specialized Windows launcher (PowerShell/CMD compatible).
+- `vortex.run`: **[NEW]** Universal Bash launcher (Linux/macOS/Termux/Git Bash).
 - `vortex/config/manager.py`: Global configuration, VERSION constant, and settings persistence.
 - `.vortex_data/`: **[NEW]** Centralized storage for history and local settings.
 - `vortex/core/cli.py`: Main REPL loop and command orchestration.

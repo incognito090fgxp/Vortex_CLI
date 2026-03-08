@@ -45,11 +45,42 @@ class UpdateManager:
         except:
             return []
 
+    def _should_check_dep(self, dep_str: str):
+        """Basic check if dependency applies to current platform based on markers."""
+        if ";" not in dep_str: return True
+        try:
+            name, marker = dep_str.split(";", 1)
+            marker = marker.lower().strip()
+            is_win = sys.platform == 'win32'
+            
+            # Simple marker evaluation for known markers used in the project
+            if "sys_platform" in marker:
+                if "=='win32'" in marker.replace(" ", ""): return is_win
+                if "!='win32'" in marker.replace(" ", ""): return not is_win
+            
+            if "python_version" in marker:
+                match = re.search(r"python_version\s*<\s*['\"]([\d\.]+)['\"]", marker)
+                if match:
+                    req_ver = tuple(map(int, match.group(1).split('.')))
+                    return sys.version_info[:len(req_ver)] < req_ver
+        except:
+            pass
+        return True # Default to True to be safe
+
     def _sync_deps(self, force=False):
         console.print("[yellow]Checking & Syncing dependencies...[/yellow]")
         required = self._get_required_deps()
         installed = self._get_installed_deps()
-        missing = [dep for dep in required if re.split('[<>=!]', dep)[0].strip().lower() not in installed]
+        
+        # Filter dependencies that actually apply to this platform
+        active_required = [d for d in required if self._should_check_dep(d)]
+        
+        # Check if anything is missing from the active set
+        missing = []
+        for dep in active_required:
+            name = re.split('[;<>!=]', dep)[0].strip().lower()
+            if name not in installed:
+                missing.append(dep)
 
         if not missing and not force:
             console.print("[green]✅ Dependencies already satisfied.[/green]")
@@ -60,9 +91,12 @@ class UpdateManager:
                 shutil.rmtree(os.path.join(PROJECT_ROOT, p), ignore_errors=True)
 
             cmd = [sys.executable, "-m", "pip", "install"]
-            if os.name == 'nt': cmd += required + ["--quiet"]
+            if os.name == 'nt': 
+                # On Windows, we can pass active required deps directly
+                cmd += active_required + ["--quiet"]
             else: 
                 # Для Termux/Linux используем -e для корректной работы путей
+                # Pip сам поймет маркеры из pyproject.toml
                 cmd += ["-e", PROJECT_ROOT, "--upgrade", "--quiet"]
 
             res = subprocess.run(cmd, cwd=PROJECT_ROOT, capture_output=True, text=True)
